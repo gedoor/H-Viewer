@@ -6,23 +6,9 @@ ext {
     BUILD_TOOLS = "25.0.2"
 }
 
-def gitVersionCode() {
-    def cmd = 'git rev-list HEAD --first-parent --count'
-    cmd.execute().text.trim().toInteger()
-}
-
-def gitVersionTag() {
-    def cmd = 'git describe --tags'
-    def version = cmd.execute().text.trim()
-    def pattern = "-(\\d+)-g"
-    def matcher = version =~ pattern
-    if (matcher) {
-        version = version.substring(0, matcher.start()) + "." + matcher[0][1]
-    } else {
-        version = version + ".0"
-    }
-    return version
-}
+def gitSha = 'git rev-parse --short HEAD'.execute([], project.rootDir).text.trim()
+def gitTag = 'git tag'.execute([], project.rootDir).text.trim().split("\n").last()
+def gitCommits = Integer.parseInt('git rev-list --count HEAD'.execute([], project.rootDir).text.trim())
 
 android {
     signingConfigs {
@@ -31,14 +17,25 @@ android {
     buildToolsVersion BUILD_TOOLS
     defaultConfig {
         applicationId "ml.puredark.hviewer"
-        resValue "string", "app_name", "H-Viewer"
+
         minSdkVersion 17
         targetSdkVersion 25
-        versionCode 100
-        versionName "1.1.1"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-        vectorDrawables.useSupportLibrary = true
-        project.ext.set("archivesBaseName", "H-Viewer " + gitVersionTag());
+
+        versionCode 20000 + gitCommits
+        versionName gitTag
+
+        manifestPlaceholders = [APP_NAME: '@string/app_name']
+
+        // Versioning
+        buildConfigField "String", "GIT_SHA", "\"${gitSha}\""
+        println "Building ${gitTag} (rev. ${gitCommits} on ${gitSha})"
+
+        // FIR
+        buildConfigField "boolean", "FIR_ENABLED", "!DEBUG && ${project.hasProperty('FIR_API_TOKEN')}"
+        buildConfigField "String", "FIR_API_TOKEN",
+                project.hasProperty('FIR_API_TOKEN') ? "\"${FIR_API_TOKEN}\"" : "null"
+
+        buildConfigField "boolean", "FIR_OTA_ENABLED", "FIR_ENABLED"
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -47,7 +44,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix '.debug'
-            resValue "string", "app_name", "H-Viewer-debug"
+            manifestPlaceholders = [APP_NAME: '@string/app_name_debug']
         }
         release {
             minifyEnabled false
@@ -65,9 +62,8 @@ android {
         abortOnError false
     }
     productFlavors {
-        github {}
-        productFlavors.all { flavor ->
-            flavor.manifestPlaceholders = [UMENG_CHANNEL_VALUE: name]
+        github {
+            manifestPlaceholders = [UMENG_CHANNEL: "GitHub"]
         }
     }
     packagingOptions {
