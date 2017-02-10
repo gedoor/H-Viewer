@@ -50,12 +50,6 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro', 'proguard-fresco.pro'
             zipAlignEnabled true
         }
-        applicationVariants.all { variant ->
-            if (variant.buildType.name.equals('release')) {
-                variant.mergedFlavor.versionCode = gitVersionCode()
-                variant.mergedFlavor.versionName = gitVersionTag()
-            }
-        }
     }
     lintOptions {
         abortOnError false
@@ -63,6 +57,17 @@ android {
     productFlavors {
         github {
             manifestPlaceholders = [UMENG_CHANNEL: "GitHub"]
+        }
+    }
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            if (output.outputFile != null && output.outputFile.name.endsWith('.apk')) {
+                output.outputFile = file("${output.outputFile.parent}/H-Viewer" +
+                        "-${variant.buildType.name.toLowerCase()}" +
+                        "-${variant.versionName}" +
+                        "-${variant.flavorName.toLowerCase()}" +
+                        ".apk")
+            }
         }
     }
     packagingOptions {
