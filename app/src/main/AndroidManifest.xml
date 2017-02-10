@@ -24,7 +24,7 @@
             android:value="57ea5bcd67e58e5bdf0022af" />
         <meta-data
             android:name="UMENG_CHANNEL"
-            android:value="${UMENG_CHANNEL_VALUE}" />
+            android:value="${UMENG_CHANNEL}" />
 
         <activity
             android:name=".ui.activities.MainActivity"
