@@ -3,7 +3,6 @@ apply plugin: 'me.tatarka.retrolambda'
 
 ext {
     VERSION_DATE = new Date().format("yy-MM-dd", TimeZone.getTimeZone("UTC"))
-    BUILD_TOOLS = "25.0.2"
 }
 
 def gitSha = 'git rev-parse --short HEAD'.execute([], project.rootDir).text.trim()
@@ -14,7 +13,7 @@ android {
     signingConfigs {
     }
     compileSdkVersion 25
-    buildToolsVersion BUILD_TOOLS
+    buildToolsVersion "25.0.2"
     defaultConfig {
         applicationId "ml.puredark.hviewer"
 
