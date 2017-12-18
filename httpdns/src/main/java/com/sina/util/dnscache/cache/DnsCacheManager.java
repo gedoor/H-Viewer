@@ -5,6 +5,7 @@ package com.sina.util.dnscache.cache;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabaseLockedException;
 
 import com.sina.util.dnscache.model.DomainModel;
 import com.sina.util.dnscache.model.HttpDnsPack;
@@ -14,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static android.R.id.list;
 
 /**
  *
@@ -78,7 +81,12 @@ public class DnsCacheManager extends DNSCacheDatabaseHelper implements IDnsCache
 		
 		if( model == null ){
 			//缓存中没有从数据库中查找
-			ArrayList<DomainModel> list = (ArrayList<DomainModel>) db.QueryDomainInfo(url, sp ) ;
+            ArrayList<DomainModel> list = null;
+            try {
+                list = (ArrayList<DomainModel>) db.QueryDomainInfo(url, sp);
+            } catch(SQLiteDatabaseLockedException e){
+                e.printStackTrace();
+            }
 			if( list != null && list.size() != 0){
 				model = list.get( list.size() - 1 ) ;
 			}
@@ -137,7 +145,11 @@ public class DnsCacheManager extends DNSCacheDatabaseHelper implements IDnsCache
 
         if( domainModel != null && domainModel.ipModelArr != null && domainModel.ipModelArr.size() > 0){
 	        // 插入数据库
-	        domainModel = super.addDomainModel(dnsPack.domain,dnsPack.localhostSp,domainModel) ;
+            try {
+                domainModel = super.addDomainModel(dnsPack.domain, dnsPack.localhostSp, domainModel);
+            }catch (SQLiteDatabaseLockedException e){
+                e.printStackTrace();
+            }
 	        // 插入内存缓存
 	        addMemoryCache( domainModel.domain, domainModel );
         }

@@ -3,9 +3,9 @@ package ml.puredark.hviewer.beans;
 import java.lang.reflect.Field;
 import java.util.List;
 
-import ml.puredark.hviewer.ui.dataproviders.AbstractDataProvider;
+import ml.puredark.hviewer.libraries.advrecyclerview.common.data.AbstractExpandableDataProvider;
 
-public class Collection extends AbstractDataProvider.Data {
+public class Collection extends AbstractExpandableDataProvider.ChildData {
     public int cid;
     public String idCode = "";
     public String title = "", uploader = "", cover = "", category = "", datetime = "";
@@ -99,5 +99,15 @@ public class Collection extends AbstractDataProvider.Data {
             return false;
         }
         return obj1.equals(obj2);
+    }
+
+    @Override
+    public long getChildId() {
+        return cid;
+    }
+
+    @Override
+    public String getText() {
+        return title;
     }
 }

@@ -1,11 +1,10 @@
-package ml.puredark.hviewer.ui.customs;
+package ml.puredark.hviewer.ui.preferences;
 
 import android.content.Context;
 import android.preference.Preference;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
@@ -13,7 +12,7 @@ import android.widget.ListView;
  * Created by PureDark on 2016/10/9.
  */
 
-public class LongClickPreference extends Preference implements View.OnLongClickListener{
+public class LongClickPreference extends Preference implements View.OnLongClickListener {
     private View.OnLongClickListener onLongClickListener;
 
     public LongClickPreference(Context context) {
@@ -28,7 +27,7 @@ public class LongClickPreference extends Preference implements View.OnLongClickL
         super(context, attrs);
     }
 
-    public void setOnLongClickListener(View.OnLongClickListener onLongClickListener){
+    public void setOnLongClickListener(View.OnLongClickListener onLongClickListener) {
         this.onLongClickListener = onLongClickListener;
     }
 
@@ -36,19 +35,15 @@ public class LongClickPreference extends Preference implements View.OnLongClickL
     protected View onCreateView(ViewGroup parent) {
         if (parent instanceof ListView) {
             ListView listView = (ListView) parent;
-            listView.setOnItemLongClickListener(new ListView.OnItemLongClickListener() {
-
-                @Override
-                public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                    ListView listView = (ListView) parent;
-                    ListAdapter listAdapter = listView.getAdapter();
-                    Object obj = listAdapter.getItem(position);
-                    if (obj != null && obj instanceof View.OnLongClickListener) {
-                        View.OnLongClickListener longListener = (View.OnLongClickListener) obj;
-                        return longListener.onLongClick(view);
-                    }
-                    return false;
+            listView.setOnItemLongClickListener((parent1, view, position, id) -> {
+                ListView listView1 = (ListView) parent1;
+                ListAdapter listAdapter = listView1.getAdapter();
+                Object obj = listAdapter.getItem(position);
+                if (obj != null && obj instanceof View.OnLongClickListener) {
+                    View.OnLongClickListener longListener = (View.OnLongClickListener) obj;
+                    return longListener.onLongClick(view);
                 }
+                return false;
             });
         }
         return super.onCreateView(parent);
@@ -56,6 +51,6 @@ public class LongClickPreference extends Preference implements View.OnLongClickL
 
     @Override
     public boolean onLongClick(View v) {
-        return onLongClickListener!=null && onLongClickListener.onLongClick(v);
+        return onLongClickListener != null && onLongClickListener.onLongClick(v);
     }
 }

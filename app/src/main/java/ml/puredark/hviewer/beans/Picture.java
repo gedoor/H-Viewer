@@ -2,15 +2,15 @@ package ml.puredark.hviewer.beans;
 
 import ml.puredark.hviewer.ui.dataproviders.AbstractDataProvider;
 
+import static ml.puredark.hviewer.beans.DownloadItemStatus.STATUS_WAITING;
+
 public class Picture extends AbstractDataProvider.Data {
-    public final static int STATUS_WAITING = 1;
-    public final static int STATUS_DOWNLOADING = 2;
-    public final static int STATUS_DOWNLOADED = 3;
     public int pid;
     public String thumbnail, url, pic, highRes, filename;
     public int retries;
     public int status = STATUS_WAITING;
     public String referer;
+    public boolean loadedHighRes;
 
     public Picture(int pid, String url, String thumbnail, String highRes, String referer) {
         this.pid = pid;
@@ -18,6 +18,10 @@ public class Picture extends AbstractDataProvider.Data {
         this.thumbnail = thumbnail;
         this.highRes = highRes;
         this.referer = referer;
+    }
+
+    public static boolean hasPicPosfix(String url) {
+        return url != null && (url.endsWith(".jpg") || url.endsWith(".png") || url.endsWith(".bmp") || url.endsWith(".gif") || url.endsWith(".webp"));
     }
 
     @Override
@@ -42,9 +46,5 @@ public class Picture extends AbstractDataProvider.Data {
             return false;
         }
         return obj1.equals(obj2);
-    }
-
-    public static boolean hasPicPosfix(String url) {
-        return url != null && (url.endsWith(".jpg") || url.endsWith(".png") || url.endsWith(".bmp") || url.endsWith(".gif") || url.endsWith(".webp"));
     }
 }

@@ -30,7 +30,6 @@ import java.util.Map;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import ml.puredark.hviewer.R;
-import ml.puredark.hviewer.beans.Category;
 import ml.puredark.hviewer.beans.Collection;
 import ml.puredark.hviewer.beans.LocalCollection;
 import ml.puredark.hviewer.beans.Site;
@@ -38,10 +37,10 @@ import ml.puredark.hviewer.dataholders.SiteTagHolder;
 import ml.puredark.hviewer.helpers.Logger;
 import ml.puredark.hviewer.helpers.SiteFlagHandler;
 import ml.puredark.hviewer.http.ImageLoader;
+import ml.puredark.hviewer.http.ImageSizeInputStreamProvider;
 import ml.puredark.hviewer.ui.dataproviders.ListDataProvider;
 import ml.puredark.hviewer.utils.DensityUtil;
-
-import static com.umeng.analytics.a.p;
+import q.rorbin.fastimagesize.FastImageSize;
 
 public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public final static int TYPE_LIST = 1;
@@ -50,6 +49,7 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private Context context;
     private ListDataProvider<Collection> mProvider;
     private OnItemClickListener mItemClickListener;
+    private CollectionTagAdapter.OnItemClickListener mTagClickListener;
     private Site site;
     private boolean isGrid = false;
     private boolean waterfallAsList = false;
@@ -98,16 +98,26 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             holder.tvTitle.setText(collection.title);
             holder.tvUploader.setText(collection.uploader);
             holder.tvCategory.setText(collection.category);
+            holder.tvUploader.setVisibility(View.VISIBLE);
+            holder.tvCategory.setVisibility(View.VISIBLE);
             if (collection.tags == null) {
                 holder.tvTitle.setMaxLines(2);
-                holder.rvTags.setAdapter(
-                        new CollectionTagAdapter(new ListDataProvider<>(new ArrayList()))
-                );
+                CollectionTagAdapter adapter = new CollectionTagAdapter(new ListDataProvider<>(new ArrayList()));
+                adapter.setOnItemClickListener(mTagClickListener);
+                holder.rvTags.setAdapter(adapter);
             } else {
-                holder.tvTitle.setMaxLines(1);
-                holder.rvTags.setAdapter(
-                        new CollectionTagAdapter(new ListDataProvider<>(collection.tags))
-                );
+                if (TextUtils.isEmpty(collection.uploader)) {
+                    holder.tvUploader.setVisibility(View.GONE);
+                    holder.tvTitle.setLines(2);
+                } else if (TextUtils.isEmpty(collection.category)) {
+                    holder.tvCategory.setVisibility(View.GONE);
+                    holder.tvTitle.setLines(2);
+                } else {
+                    holder.tvTitle.setMaxLines(1);
+                }
+                CollectionTagAdapter adapter = new CollectionTagAdapter(new ListDataProvider<>(collection.tags));
+                adapter.setOnItemClickListener(mTagClickListener);
+                holder.rvTags.setAdapter(adapter);
             }
             holder.rbRating.setRating(collection.rating);
             holder.tvSubmittime.setText(collection.datetime);
@@ -127,7 +137,10 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             if (collection instanceof LocalCollection) {
                 cookie = ((LocalCollection) collection).site.cookie;
             }
-            ImageLoader.loadImageFromUrl(context, holder.ivCover, collection.cover, cookie, collection.referer);
+            if (TextUtils.isEmpty(collection.cover))
+                checkSiteFlags(position, site, collection);
+            else
+                ImageLoader.loadImageFromUrl(context, holder.ivCover, collection.cover, cookie, collection.referer);
         } else if (viewHolder instanceof CollectionWaterfallViewHolder) {
             CollectionWaterfallViewHolder holder = (CollectionWaterfallViewHolder) viewHolder;
             String cookie = (site == null) ? "" : site.cookie;
@@ -138,16 +151,41 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             waterfallCheckTextView(holder.tvUploader, collection.uploader);
             waterfallCheckTextView(holder.tvCategory, collection.category);
             waterfallCheckTextView(holder.tvSubmittime, collection.datetime);
-            int originHeight = (storedHeights.get(collection) != null)
-                    ? storedHeights.get(collection)
-                    : DensityUtil.dp2px(context, 215);
+            Integer originHeightObj = storedHeights.get(collection);
+            int originHeight = (originHeightObj != null && originHeightObj > 0) ? originHeightObj.intValue() : DensityUtil.dp2px(context, 215);
             holder.ivCover.getLayoutParams().height = originHeight;
             holder.ivIcon.getLayoutParams().height = originHeight;
             holder.tvDescription.getLayoutParams().height = originHeight;
             holder.ivCover.requestLayout();
             holder.ivIcon.requestLayout();
-            holder.tvDescription.requestLayout();
-            if (TextUtils.isEmpty(collection.cover)) {
+            if (originHeightObj == null || originHeightObj <= 0) {
+                FastImageSize.with(collection.cover)
+                        .customProvider(new ImageSizeInputStreamProvider(collection.referer, cookie))
+                        .get(size -> {
+                            int width = size[0];
+                            int height = size[1];
+                            final float factor = (float) height / width;
+                            final int viewWidth = holder.ivCover.getWidth();
+                            final int viewHeight = (int) (factor * viewWidth);
+                            if (viewHeight > 0) {
+                                if (holder.ivCover.getLayoutParams().height != viewHeight) {
+                                    holder.ivCover.getLayoutParams().height = viewHeight;
+                                    holder.ivIcon.getLayoutParams().height = viewHeight;
+                                    holder.ivCover.requestLayout();
+                                    holder.ivIcon.requestLayout();
+                                }
+                                storedHeights.put(collection, viewHeight);
+                            }
+                        });
+            }
+            if (site != null) {
+                checkSiteFlags(position, site, collection);
+            } else if (collection instanceof LocalCollection) {
+                holder.tvTitle.setVisibility(View.VISIBLE);
+                checkSiteFlags(holder, ((LocalCollection) collection).site);
+                checkSiteFlags(position, ((LocalCollection) collection).site, collection);
+            }
+            if (TextUtils.isEmpty(collection.cover) && !TextUtils.isEmpty(collection.description)) {
                 holder.ivIcon.setVisibility(View.GONE);
                 holder.ivCover.setVisibility(View.GONE);
                 holder.tvDescription.getLayoutParams().height = ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -164,46 +202,36 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 holder.ivIcon.setVisibility(View.VISIBLE);
                 holder.ivCover.setVisibility(View.VISIBLE);
                 holder.tvDescription.setVisibility(View.GONE);
-                ImageLoader.loadImageFromUrl(context, holder.ivCover, collection.cover, cookie, collection.referer, new BaseControllerListener<ImageInfo>() {
-                    @Override
-                    public void onSubmit(String id, Object callerContext) {
-                        super.onSubmit(id, callerContext);
-                    }
+                if (!TextUtils.isEmpty(collection.cover))
+                    ImageLoader.loadImageFromUrl(context, holder.ivCover, collection.cover, cookie, collection.referer, new BaseControllerListener<ImageInfo>() {
 
-                    @Override
-                    public void onFinalImageSet(String id, @Nullable ImageInfo imageInfo, @Nullable Animatable anim) {
-                        super.onFinalImageSet(id, imageInfo, anim);
-                        if (imageInfo == null) {
-                            return;
+                        @Override
+                        public void onFinalImageSet(String id, @Nullable ImageInfo imageInfo, @Nullable Animatable anim) {
+                            super.onFinalImageSet(id, imageInfo, anim);
+                            if (imageInfo == null) {
+                                return;
+                            }
+                            holder.ivCover.post(() -> {
+                                final float factor = (float) imageInfo.getHeight() / imageInfo.getWidth();
+                                final int originWidth = holder.ivCover.getWidth();
+                                final int originHeight = (int) (factor * originWidth);
+                                if (originHeight > 0) {
+                                    if (holder.ivCover.getLayoutParams().height != originHeight) {
+                                        holder.ivCover.getLayoutParams().height = originHeight;
+                                        holder.ivIcon.getLayoutParams().height = originHeight;
+                                        holder.ivCover.requestLayout();
+                                        holder.ivIcon.requestLayout();
+                                    }
+                                    storedHeights.put(collection, originHeight);
+                                }
+                            });
                         }
-                        holder.ivCover.post(() -> {
-                            final float factor = (float) imageInfo.getHeight() / imageInfo.getWidth();
-                            final int originWidth = holder.ivCover.getWidth();
-                            final int originHeight = (int) (factor * originWidth);
-                            holder.ivCover.getLayoutParams().height = originHeight;
-                            holder.ivIcon.getLayoutParams().height = originHeight;
-                            holder.ivCover.requestLayout();
-                            holder.ivIcon.requestLayout();
-                            storedHeights.put(collection, originHeight);
-                        });
-                    }
 
-                    @Override
-                    public void onIntermediateImageSet(String id, @Nullable ImageInfo imageInfo) {
-                    }
-
-                    @Override
-                    public void onFailure(String id, Throwable throwable) {
-                        FLog.e(getClass(), throwable, "Error loading %s", id);
-                    }
-                });
-                if (site != null) {
-                    checkSiteFlags(position, site, collection);
-                } else if (collection instanceof LocalCollection) {
-                    holder.tvTitle.setVisibility(View.VISIBLE);
-                    checkSiteFlags(holder, ((LocalCollection) collection).site);
-                    checkSiteFlags(position, ((LocalCollection) collection).site, collection);
-                }
+                        @Override
+                        public void onFailure(String id, Throwable throwable) {
+                            FLog.e(getClass(), throwable, "Error loading %s", id);
+                        }
+                    });
             }
         }
     }
@@ -253,6 +281,7 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         if (site.hasFlag(Site.FLAG_NO_TITLE)) {
             holder.tvTitle.setVisibility(View.GONE);
         }
+        holder.tvTitle.setMaxLines(2);
     }
 
     @Override
@@ -272,6 +301,10 @@ public class CollectionAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     public void setOnItemClickListener(OnItemClickListener listener) {
         this.mItemClickListener = listener;
+    }
+
+    public void setOnTagClickListener(CollectionTagAdapter.OnItemClickListener listener) {
+        this.mTagClickListener = listener;
     }
 
     public void setSite(Site site) {

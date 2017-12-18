@@ -40,28 +40,28 @@ import ml.puredark.hviewer.utils.SharedPreferencesUtil;
 
 public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOffsetChangedListener {
 
+    protected boolean isCategoryEnable = false;
+    protected boolean isStatusBarEnabled = true;
+    protected boolean isDoubleBackExitEnabled = false;
     private DrawerArrowDrawable btnReturnIcon;
-
     private View container;
     private DrawerLayout drawerLayout;
     private ImageView btnReturn;
     private AppBarLayout appBar;
     private FloatingActionMenu fabMenu;
-
     private DownloadReceiver receiver;
-
-    protected boolean isCategoryEnable = false;
-    protected boolean isStatusBarEnabled = true;
-
-    protected boolean isDoubleBackExitEnabled = false;
     //按下返回键次数
     private int backCount = 0;
 
     //是否动画中
     private boolean animating = false;
 
+    //允许退出当前Activity
+    private boolean allowExit = true;
+
     //是否开始页面统计
     private boolean analyze = true;
+    private int lastOffset;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,7 +112,7 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
         this.analyze = analyze;
     }
 
-    public boolean isInOneHandMode(){
+    public boolean isInOneHandMode() {
         return (boolean) SharedPreferencesUtil.getData(this, SettingFragment.KEY_PREF_VIEW_ONE_HAND, false);
     }
 
@@ -134,6 +134,18 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
         isDoubleBackExitEnabled = doubleBackExitEnabled;
     }
 
+    public boolean isAnimating() {
+        return animating;
+    }
+
+    public void setAnimating(boolean animating) {
+        this.animating = animating;
+    }
+
+    public void setAllowExit(boolean allow) {
+        allowExit = allow;
+    }
+
     public void showSnackBar(String content) {
         if (container == null) return;
         Snackbar snackbar = Snackbar.make(
@@ -141,6 +153,17 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
                 content,
                 Snackbar.LENGTH_LONG);
         snackbar.setActionTextColor(ContextCompat.getColor(this, R.color.colorAccentDark));
+        snackbar.show();
+    }
+
+    public void showSnackBar(String content, String actionText, View.OnClickListener listener) {
+        if (container == null) return;
+        Snackbar snackbar = Snackbar.make(
+                container,
+                content,
+                Snackbar.LENGTH_INDEFINITE);
+        snackbar.setActionTextColor(ContextCompat.getColor(this, R.color.colorAccentDark));
+        snackbar.setAction(actionText, listener);
         snackbar.show();
     }
 
@@ -170,9 +193,9 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
 
     @Override
     public void onBackPressed() {
-        if (animating)
+        if (animating || !allowExit)
             return;
-        if(isDoubleBackExitEnabled){
+        if (isDoubleBackExitEnabled) {
             backCount++;
             if (backCount == 1)
                 showSnackBar("再按一次退出");
@@ -204,8 +227,7 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
                     finish();
             }
             new Handler().postDelayed(() -> backCount = 0, 1000);
-        }
-        else
+        } else
             finish();
     }
 
@@ -219,7 +241,6 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
             return false;
         }
     }
-
 
     @Override
     public void onResume() {
@@ -258,8 +279,6 @@ public class BaseActivity extends SwipeBackActivity implements AppBarLayout.OnOf
         if (appBar != null)
             appBar.removeOnOffsetChangedListener(this);
     }
-
-    private int lastOffset;
 
     @Override
     public void onOffsetChanged(AppBarLayout appBarLayout, int verticalOffset) {

@@ -1,10 +1,9 @@
 package ml.puredark.hviewer.ui.fragments;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
+import android.app.Dialog;
 import android.app.FragmentTransaction;
 import android.content.ActivityNotFoundException;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -17,9 +16,13 @@ import android.preference.PreferenceScreen;
 import android.support.annotation.NonNull;
 import android.support.v4.provider.DocumentFile;
 import android.support.v7.app.AlertDialog;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.WindowManager;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.facebook.common.util.ByteConstants;
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.imagepipeline.core.ImagePipeline;
 import com.google.gson.Gson;
@@ -31,7 +34,6 @@ import com.google.gson.reflect.TypeToken;
 import net.rdrei.android.dirchooser.DirectoryChooserConfig;
 import net.rdrei.android.dirchooser.DirectoryChooserFragment;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,24 +45,20 @@ import ml.puredark.hviewer.configs.UrlConfig;
 import ml.puredark.hviewer.dataholders.DownloadTaskHolder;
 import ml.puredark.hviewer.dataholders.FavouriteHolder;
 import ml.puredark.hviewer.download.DownloadManager;
-import ml.puredark.hviewer.download.DownloadService;
+import ml.puredark.hviewer.helpers.DataBackup;
 import ml.puredark.hviewer.helpers.DataRestore;
 import ml.puredark.hviewer.helpers.FileHelper;
 import ml.puredark.hviewer.helpers.UpdateManager;
 import ml.puredark.hviewer.http.HViewerHttpClient;
 import ml.puredark.hviewer.ui.activities.BaseActivity;
 import ml.puredark.hviewer.ui.activities.LicenseActivity;
-import ml.puredark.hviewer.ui.activities.LoginActivity;
-import ml.puredark.hviewer.ui.activities.MainActivity;
-import ml.puredark.hviewer.ui.activities.ModifySiteActivity;
-import ml.puredark.hviewer.ui.customs.LongClickPreference;
+import ml.puredark.hviewer.ui.activities.PrivacyActivity;
+import ml.puredark.hviewer.ui.preferences.LongClickPreference;
+import ml.puredark.hviewer.utils.DensityUtil;
 import ml.puredark.hviewer.utils.SharedPreferencesUtil;
-import ml.puredark.hviewer.helpers.DataBackup;
 
-import static android.R.attr.path;
 import static android.app.Activity.RESULT_OK;
 import static ml.puredark.hviewer.HViewerApplication.mContext;
-import static ml.puredark.hviewer.HViewerApplication.temp;
 
 /**
  * Created by PureDark on 2016/9/25.
@@ -99,13 +97,20 @@ public class SettingFragment extends PreferenceFragment
     public static final String KEY_PREF_BKRS_BACKUP = "pref_backupandrestore_backup";
     public static final String KEY_PREF_BKRS_RESTORE = "pref_backupandrestore_restore";
 
+    public static final String KEY_PREF_LOCK_METHODS_DETAIL = "pref_lock_methods_detail";
+
     public static final String KEY_PREF_ABOUT_UPGRADE = "pref_about_upgrade";
     public static final String KEY_PREF_ABOUT_LICENSE = "pref_about_license";
+    public static final String KEY_PREF_ABOUT_PRIVACY = "pref_about_privacy";
     public static final String KEY_PREF_ABOUT_H_VIEWER = "pref_about_h_viewer";
 
     public static final String KEY_PREF_MODE_R18_ENABLED = "pref_mode_r18_enabled";
 
     public static final String KEY_LAST_SITE_ID = "last_site_id";
+
+    public static final String KEY_FIRST_TIME = "key_first_time";
+
+    public static final String KEY_CUSTOM_HEADER_IMAGE = "key_custom_header_image";
 
     private static final int RESULT_CHOOSE_DIRECTORY = 1;
 
@@ -151,6 +156,11 @@ public class SettingFragment extends PreferenceFragment
                 .build();
         mDialog = DirectoryChooserFragment.newInstance(config);
         mDialog.setTargetFragment(this, 0);
+
+        float size = (float) Fresco.getImagePipelineFactory().getMainFileCache().getSize() / ByteConstants.MB;
+        Preference cacheCleanPreference = getPreferenceManager().findPreference(KEY_PREF_CACHE_CLEAN);
+        cacheCleanPreference.setSummary(String.format("已使用 %.2f MB", size));
+
         LongClickPreference prefDownloadPath = (LongClickPreference) getPreferenceManager().findPreference(KEY_PREF_DOWNLOAD_PATH);
         prefDownloadPath.setOnLongClickListener(v -> {
             new AlertDialog.Builder(activity)
@@ -166,7 +176,7 @@ public class SettingFragment extends PreferenceFragment
                                 mDialog.show(getFragmentManager(), null);
                             }
                             new Handler().postDelayed(() -> {
-                                if(!opened)
+                                if (!opened)
                                     activity.showSnackBar("如无法开启系统文档，长按使用旧工具");
                             }, 1000);
                         } else if (pos == 1) {
@@ -181,13 +191,13 @@ public class SettingFragment extends PreferenceFragment
     }
 
     @Override
-    public void onPause(){
+    public void onPause() {
         super.onPause();
         opened = true;
     }
 
     @Override
-    public void onResume(){
+    public void onResume() {
         super.onResume();
         opened = false;
     }
@@ -228,7 +238,7 @@ public class SettingFragment extends PreferenceFragment
             //备份
             new AlertDialog.Builder(activity).setTitle("确认备份?")
                     .setMessage("将会覆盖之前的备份")
-                    .setPositiveButton(getString(R.string.ok),((dialog, which) -> {
+                    .setPositiveButton(getString(R.string.ok), ((dialog, which) -> {
                         String backup = new DataBackup().DoBackup();
                         activity.showSnackBar(backup);
                     }))
@@ -237,8 +247,8 @@ public class SettingFragment extends PreferenceFragment
         } else if (preference.getKey().equals(KEY_PREF_BKRS_RESTORE)) {
             //还原
             new AlertDialog.Builder(activity).setTitle("确认恢复?")
-                    .setMessage("将会新增站点,不会删除原有站点")
-                    .setPositiveButton(getString(R.string.ok),((dialog, which) -> {
+                    .setMessage("如已存在同名站点，不会覆盖")
+                    .setPositiveButton(getString(R.string.ok), ((dialog, which) -> {
                         String restore = new DataRestore().DoRestore();
                         Intent intent = new Intent();
                         activity.setResult(RESULT_OK, intent);
@@ -250,6 +260,10 @@ public class SettingFragment extends PreferenceFragment
         } else if (preference.getKey().equals(KEY_PREF_ABOUT_LICENSE)) {
             //开源协议
             Intent intent = new Intent(activity, LicenseActivity.class);
+            startActivity(intent);
+        } else if (preference.getKey().equals(KEY_PREF_ABOUT_PRIVACY)) {
+            //隐私权政策
+            Intent intent = new Intent(activity, PrivacyActivity.class);
             startActivity(intent);
         } else if (preference.getKey().equals(KEY_PREF_ABOUT_H_VIEWER)) {
             //关于
@@ -270,7 +284,7 @@ public class SettingFragment extends PreferenceFragment
                     mDialog.show(getFragmentManager(), null);
                 }
                 new Handler().postDelayed(() -> {
-                    if(!opened)
+                    if (!opened)
                         activity.showSnackBar("如无法开启系统文档，长按使用旧工具");
                 }, 1000);
             } else {
@@ -298,7 +312,7 @@ public class SettingFragment extends PreferenceFragment
                             activity.showSnackBar("导出收藏夹成功");
                         } else
                             activity.showSnackBar("创建文件失败，请检查下载目录");
-                        })
+                    })
                     .setNegativeButton(getString(R.string.cancel), null).show();
         } else if (preference.getKey().equals(KEY_PREF_FAVOURITE_IMPORT)) {
             //导入收藏夹
@@ -333,12 +347,20 @@ public class SettingFragment extends PreferenceFragment
                         ImagePipeline imagePipeline = Fresco.getImagePipeline();
                         imagePipeline.clearDiskCaches();
                         activity.showSnackBar("缓存清理成功");
+                        preference.setSummary("已使用 0.00 MB");
                     })
                     .setNegativeButton(getString(R.string.cancel), null).show();
         } else if (preference.getKey().equals(KEY_PREF_PROXY_DETAIL)) {
             //PROXY代理
             FragmentTransaction transaction = getFragmentManager().beginTransaction();
             transaction.replace(R.id.setting_content, new ProxyFragment(activity));
+            transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
+            transaction.addToBackStack(null);
+            transaction.commit();
+        } else if (preference.getKey().equals(KEY_PREF_LOCK_METHODS_DETAIL)) {
+            //应用解锁方式
+            FragmentTransaction transaction = getFragmentManager().beginTransaction();
+            transaction.replace(R.id.setting_content, new LockMethodFragment(activity));
             transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
             transaction.addToBackStack(null);
             transaction.commit();
@@ -365,6 +387,41 @@ public class SettingFragment extends PreferenceFragment
                 getPreferenceManager().findPreference(KEY_PREF_DOWNLOAD_PATH).setSummary(displayPath);
             }
         }
+    }
+
+    public void DownloadedImport() {
+        // 关闭边缘滑动返回
+        activity.setSwipeBackEnable(false);
+        // 阻止退出
+        activity.setAllowExit(false);
+        View view = LayoutInflater.from(activity).inflate(R.layout.dialog_loading, null);
+        TextView tvLoadingText = (TextView) view.findViewById(R.id.tv_loading_text);
+        tvLoadingText.setText("正在导入已下载图册");
+        final Dialog dialog = new AlertDialog.Builder(activity)
+                .setView(view)
+                .create();
+        dialog.setCanceledOnTouchOutside(false);
+        //设置对话框位置
+        WindowManager.LayoutParams lp = dialog.getWindow().getAttributes();
+        lp.width = DensityUtil.getScreenWidth(activity) - DensityUtil.dp2px(activity, 64);
+        dialog.getWindow().setAttributes(lp);
+        dialog.show();
+        new Thread(() -> {
+            DownloadTaskHolder holder = new DownloadTaskHolder(activity);
+            final int count = holder.scanPathForDownloadTask(DownloadManager.getDownloadPath());
+            holder.onDestroy();
+            activity.runOnUiThread(() -> {
+                if (count > 0)
+                    Toast.makeText(mContext, "成功导入" + count + "个已下载图册", Toast.LENGTH_SHORT).show();
+                else if (count == 0)
+                    Toast.makeText(mContext, "未发现不在下载管理中的已下载图册", Toast.LENGTH_SHORT).show();
+                else
+                    Toast.makeText(mContext, "导入失败", Toast.LENGTH_SHORT).show();
+            });
+            activity.setSwipeBackEnable(true);
+            activity.setAllowExit(true);
+            dialog.dismiss();
+        }).start();
     }
 
     public void checkUpdate() {

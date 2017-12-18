@@ -4,7 +4,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
-import android.support.v4.util.Pair;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
@@ -19,15 +18,12 @@ import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 import com.rengwuxian.materialedittext.MaterialEditText;
 
-import java.util.List;
-
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import ml.puredark.hviewer.HViewerApplication;
 import ml.puredark.hviewer.R;
 import ml.puredark.hviewer.beans.Site;
-import ml.puredark.hviewer.beans.SiteGroup;
 import ml.puredark.hviewer.dataholders.SiteHolder;
 import ml.puredark.hviewer.helpers.MDStatusBarCompat;
 import ml.puredark.hviewer.helpers.SitePropViewHolder;
@@ -59,8 +55,6 @@ public class AddSiteActivity extends BaseActivity {
     @BindView(R.id.fab_submit)
     FloatingActionButton fabSubmit;
 
-    private Pair<SiteGroup, List<Site>> pair;
-
     private SitePropViewHolder holder;
 
     private SiteHolder siteHolder;
@@ -79,8 +73,8 @@ public class AddSiteActivity extends BaseActivity {
         /* 为返回按钮加载图标 */
         setReturnButton(btnReturn);
 
-        holder = new SitePropViewHolder(viewSiteDetails);
         siteHolder = new SiteHolder(this);
+        holder = new SitePropViewHolder(viewSiteDetails, siteHolder.getGroups());
 
     }
 
@@ -125,14 +119,18 @@ public class AddSiteActivity extends BaseActivity {
 
     @OnClick(R.id.fab_submit)
     void submit() {
-        Site newSite = holder.fromEditTextToSite();
+        Site newSite = holder.fromEditTextToSite(false);
         if (newSite == null) {
             showSnackBar("规则缺少必要参数，请检查");
             return;
         }
+        if (newSite.gid == 0) {
+            showSnackBar("请选择一个分类，如无请先创建分类");
+            return;
+        }
 
         int sid = siteHolder.addSite(newSite);
-        if(sid<0){
+        if (sid < 0) {
             showSnackBar("插入数据库失败");
             return;
         }
@@ -172,7 +170,7 @@ public class AddSiteActivity extends BaseActivity {
     private Site parseSite(String json) {
         try {
             Site site = new Gson().fromJson(json, Site.class);
-            if (site == null || site.indexUrl == null || site.galleryUrl == null ||
+            if (site == null || site.indexUrl == null || site.galleryUrl == null || site.indexRule == null ||
                     site.indexRule.item == null || site.indexRule.idCode == null)
                 showSnackBar("输入的规则缺少信息");
             return site;

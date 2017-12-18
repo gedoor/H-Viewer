@@ -10,6 +10,7 @@ import com.facebook.common.references.CloseableReference;
 import com.facebook.datasource.BaseDataSubscriber;
 import com.facebook.datasource.DataSource;
 import com.facebook.drawee.backends.pipeline.Fresco;
+import com.facebook.drawee.backends.pipeline.PipelineDraweeControllerBuilder;
 import com.facebook.drawee.controller.ControllerListener;
 import com.facebook.drawee.interfaces.DraweeController;
 import com.facebook.drawee.view.SimpleDraweeView;
@@ -22,6 +23,7 @@ import com.facebook.imagepipeline.request.ImageRequest;
 import com.facebook.imagepipeline.request.ImageRequestBuilder;
 import com.google.gson.JsonObject;
 
+import ml.puredark.hviewer.ui.customs.RetainingDataSourceSupplier;
 import ml.puredark.hviewer.utils.DensityUtil;
 
 import static ml.puredark.hviewer.HViewerApplication.getGson;
@@ -44,15 +46,22 @@ public class ImageLoader {
         loadImageFromUrl(context, imageView, url, cookie, referer, null);
     }
 
+    public static void loadImageFromUrl(Context context, ImageView imageView, String url, String cookie, String referer, boolean noCache) {
+        loadImageFromUrl(context, imageView, url, cookie, referer, noCache, null);
+    }
+
     public static void loadImageFromUrl(Context context, ImageView imageView, String url, String cookie, String referer, ControllerListener controllerListener) {
-        if(TextUtils.isEmpty(url)) {
+        loadImageFromUrl(context, imageView, url, cookie, referer, false, controllerListener);
+    }
+
+    public static void loadImageFromUrl(Context context, ImageView imageView, String url, String cookie, String referer, boolean noCache, ControllerListener controllerListener) {
+        if (TextUtils.isEmpty(url)) {
             imageView.setImageURI(null);
-            return;
         }
         Uri uri = Uri.parse(url);
         JsonObject header = new JsonObject();
-        header.addProperty("cookie", cookie);
-        header.addProperty("referer", referer);
+        header.addProperty("Cookie", cookie);
+        header.addProperty("Referer", referer);
         if (url != null && url.startsWith("http")) {
             if (HProxy.isEnabled() && HProxy.isAllowPicture()) {
                 HProxy proxy = new HProxy(url);
@@ -61,28 +70,71 @@ public class ImageLoader {
             MyOkHttpNetworkFetcher.headers.put(uri, getGson().toJson(header));
         }
         if (imageView instanceof SimpleDraweeView) {
-            ImageRequest request = ImageRequestBuilder.newBuilderWithSource(uri)
-                    .setResizeOptions(new ResizeOptions(1080, 1920))
-                    .build();
+            SimpleDraweeView draweeView = ((SimpleDraweeView) imageView);
+            ImageRequestBuilder requestBuilder = ImageRequestBuilder.newBuilderWithSource(uri)
+                    .setResizeOptions(new ResizeOptions(1080, 1920));
+            if (noCache)
+                requestBuilder.disableDiskCache();
+            ImageRequest request = requestBuilder.build();
             DraweeController controller = Fresco.newDraweeControllerBuilder()
                     .setCallerContext(context)
                     .setTapToRetryEnabled(true)
                     .setAutoPlayAnimations(true)
-                    .setOldController(((SimpleDraweeView) imageView).getController())
+                    .setOldController(draweeView.getController())
                     .setControllerListener(controllerListener)
                     .setImageRequest(request)
                     .build();
-            ((SimpleDraweeView) imageView).setController(controller);
+            draweeView.setController(controller);
         }
     }
 
+    public static RetainingDataSourceSupplier loadImageFromUrlRetainingImage(Context context, ImageView imageView, String url, String cookie, String referer, boolean noCache, ControllerListener controllerListener) {
+        if (TextUtils.isEmpty(url)) {
+            imageView.setImageURI(null);
+            return null;
+        }
+        Uri uri = Uri.parse(url);
+        JsonObject header = new JsonObject();
+        header.addProperty("Cookie", cookie);
+        header.addProperty("Referer", referer);
+        if (url != null && url.startsWith("http")) {
+            if (HProxy.isEnabled() && HProxy.isAllowPicture()) {
+                HProxy proxy = new HProxy(url);
+                header.addProperty(proxy.getHeaderKey(), proxy.getHeaderValue());
+            }
+            MyOkHttpNetworkFetcher.headers.put(uri, getGson().toJson(header));
+        }
+        if (imageView instanceof SimpleDraweeView) {
+            SimpleDraweeView draweeView = ((SimpleDraweeView) imageView);
+            RetainingDataSourceSupplier<CloseableReference<CloseableImage>> retainingSupplier = new RetainingDataSourceSupplier<>();
+            PipelineDraweeControllerBuilder draweeControllerBuilder = Fresco.newDraweeControllerBuilder();
+            draweeControllerBuilder.setDataSourceSupplier(retainingSupplier);
+            DraweeController controller = draweeControllerBuilder
+                    .setCallerContext(context)
+                    .setTapToRetryEnabled(true)
+                    .setAutoPlayAnimations(true)
+                    .setOldController(draweeView.getController())
+                    .setControllerListener(controllerListener)
+                    .build();
+            draweeView.setController(controller);
+            ImageRequestBuilder requestBuilder = ImageRequestBuilder.newBuilderWithSource(uri)
+                    .setResizeOptions(new ResizeOptions(1080, 1920));
+            if (noCache)
+                requestBuilder.disableDiskCache();
+            ImageRequest request = requestBuilder.build();
+            retainingSupplier.setSupplier(Fresco.getImagePipeline().getDataSourceSupplier(request, null, ImageRequest.RequestLevel.FULL_FETCH));
+            return retainingSupplier;
+        }
+        return null;
+    }
+
     public static void loadBitmapFromUrl(Context context, String url, String cookie, String referer, BaseBitmapDataSubscriber dataSubscriber) {
-        if(TextUtils.isEmpty(url))
+        if (TextUtils.isEmpty(url))
             return;
         Uri uri = Uri.parse(url);
         JsonObject header = new JsonObject();
-        header.addProperty("cookie", cookie);
-        header.addProperty("referer", referer);
+        header.addProperty("Cookie", cookie);
+        header.addProperty("Referer", referer);
         if (HProxy.isEnabled() && HProxy.isAllowPicture()) {
             HProxy proxy = new HProxy(url);
             header.addProperty(proxy.getHeaderKey(), proxy.getHeaderValue());
@@ -97,17 +149,23 @@ public class ImageLoader {
     }
 
     public static void loadResourceFromUrl(Context context, String url, String cookie, String referer, BaseDataSubscriber dataSubscriber) {
-        if(TextUtils.isEmpty(url))
+        if (TextUtils.isEmpty(url))
             return;
         Uri uri = Uri.parse(url);
-        JsonObject header = new JsonObject();
-        header.addProperty("cookie", cookie);
-        header.addProperty("referer", referer);
-        if (HProxy.isEnabled() && HProxy.isAllowPicture()) {
-            HProxy proxy = new HProxy(url);
-            header.addProperty(proxy.getHeaderKey(), proxy.getHeaderValue());
+        loadResourceFromUrl(context, uri, cookie, referer, dataSubscriber);
+    }
+
+    public static void loadResourceFromUrl(Context context, Uri uri, String cookie, String referer, BaseDataSubscriber dataSubscriber) {
+        if (uri.getScheme().startsWith("http")) {
+            JsonObject header = new JsonObject();
+            header.addProperty("Cookie", cookie);
+            header.addProperty("Referer", referer);
+            if (HProxy.isEnabled() && HProxy.isAllowPicture()) {
+                HProxy proxy = new HProxy(uri.toString());
+                header.addProperty(proxy.getHeaderKey(), proxy.getHeaderValue());
+            }
+            MyOkHttpNetworkFetcher.headers.put(uri, getGson().toJson(header));
         }
-        MyOkHttpNetworkFetcher.headers.put(uri, getGson().toJson(header));
         ImagePipeline imagePipeline = Fresco.getImagePipeline();
         ImageRequestBuilder builder = ImageRequestBuilder.newBuilderWithSource(uri);
         ImageRequest request = builder.build();
@@ -130,14 +188,14 @@ public class ImageLoader {
     }
 
     public static void loadThumbFromUrl(Context context, ImageView imageView, int resizeWidthDp, int resizeHeightDp, String url, String cookie, String referer, ControllerListener controllerListener) {
-        if(TextUtils.isEmpty(url)) {
+        if (TextUtils.isEmpty(url)) {
             imageView.setImageURI(null);
             return;
         }
         Uri uri = Uri.parse(url);
         JsonObject header = new JsonObject();
-        header.addProperty("cookie", cookie);
-        header.addProperty("referer", referer);
+        header.addProperty("Cookie", cookie);
+        header.addProperty("Referer", referer);
         if (url != null && url.startsWith("http")) {
             if (HProxy.isEnabled() && HProxy.isAllowPicture()) {
                 HProxy proxy = new HProxy(url);

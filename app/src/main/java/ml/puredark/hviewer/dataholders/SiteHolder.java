@@ -38,16 +38,6 @@ public class SiteHolder {
 
     public int addSite(Site item) {
         if (item == null) return -1;
-        SiteGroup siteGroup = getGroupByTitle(item.group);
-        if (siteGroup == null) {
-            siteGroup = new SiteGroup(0, item.group);
-            addSiteGroup(siteGroup);
-            int gid = getMaxGroupId();
-            siteGroup.gid = gid;
-            siteGroup.index = gid;
-            updateSiteGroupIndex(siteGroup);
-        }
-        item.gid = siteGroup.gid;
         ContentValues contentValues = new ContentValues();
         contentValues.put("`title`", item.title);
         contentValues.put("`indexUrl`", item.indexUrl);
@@ -151,11 +141,31 @@ public class SiteHolder {
         return siteGroups;
     }
 
+    public List<SiteGroup> getGroups() {
+        List<SiteGroup> siteGroups = new ArrayList<>();
+
+        Cursor groupCursor = dbHelper.query("SELECT * FROM " + groupDbName + " ORDER BY `index` ASC");
+
+        while (groupCursor.moveToNext()) {
+            int i = groupCursor.getColumnIndex("title");
+            int gid = groupCursor.getInt(0);
+            if (i >= 0) {
+                String title = groupCursor.getString(i);
+                SiteGroup group = new SiteGroup(gid, title);
+                siteGroups.add(group);
+            }
+        }
+        groupCursor.close();
+
+        return siteGroups;
+    }
+
     public void checkNoGroupSites() {
         // 检测是否有gid为0，无法显示的站点，如有则全部添加到新建的“未分类”组别中
         Cursor cursor = dbHelper.query("SELECT 1 FROM " + dbName + " WHERE `gid` = 0");
         if (cursor.moveToNext()) {
-            int gid = addSiteGroup(new SiteGroup(0, "未分类"));
+            SiteGroup group = getGroupByTitle("未分类");
+            int gid = (group != null) ? group.gid : addSiteGroup(new SiteGroup(0, "未分类"));
             dbHelper.nonQuery("UPDATE " + dbName + " SET `gid` = " + gid + " WHERE `gid` = 0");
         }
         cursor.close();

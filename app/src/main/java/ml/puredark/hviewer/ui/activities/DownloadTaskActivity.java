@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
+import android.support.v4.provider.DocumentFile;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.OrientationHelper;
 import android.support.v7.widget.RecyclerView;
@@ -37,6 +38,7 @@ import ml.puredark.hviewer.beans.Comment;
 import ml.puredark.hviewer.beans.DownloadTask;
 import ml.puredark.hviewer.beans.LocalCollection;
 import ml.puredark.hviewer.beans.Tag;
+import ml.puredark.hviewer.beans.Video;
 import ml.puredark.hviewer.core.HtmlContentParser;
 import ml.puredark.hviewer.core.RuleParser;
 import ml.puredark.hviewer.dataholders.FavouriteHolder;
@@ -46,12 +48,12 @@ import ml.puredark.hviewer.ui.adapters.CollectionTagAdapter;
 import ml.puredark.hviewer.ui.adapters.CommentAdapter;
 import ml.puredark.hviewer.ui.adapters.PictureVideoAdapter;
 import ml.puredark.hviewer.ui.adapters.ViewPagerAdapter;
-import ml.puredark.hviewer.ui.customs.AutoFitGridLayoutManager;
 import ml.puredark.hviewer.ui.customs.AutoFitStaggeredGridLayoutManager;
 import ml.puredark.hviewer.ui.customs.ExTabLayout;
 import ml.puredark.hviewer.ui.customs.ExViewPager;
-import ml.puredark.hviewer.ui.listeners.SwipeBackOnPageChangeListener;
+import ml.puredark.hviewer.ui.customs.WrappedGridLayoutManager;
 import ml.puredark.hviewer.ui.dataproviders.ListDataProvider;
+import ml.puredark.hviewer.ui.listeners.SwipeBackOnPageChangeListener;
 import ml.puredark.hviewer.utils.DensityUtil;
 
 public class DownloadTaskActivity extends BaseActivity {
@@ -160,10 +162,10 @@ public class DownloadTaskActivity extends BaseActivity {
     }
 
     private void setCover(LocalCollection collection) {
-        if(collection==null)
+        if (collection == null)
             return;
         if (collection.pictures != null) {
-            if(collection.pictures.size()>0)
+            if (collection.pictures.size() > 0)
                 collection.cover = collection.pictures.get(0).thumbnail;
                 collection.filename = collection.pictures.get(0).filename;
         }
@@ -199,7 +201,7 @@ public class DownloadTaskActivity extends BaseActivity {
         pictureVideoAdapter.setCookie(task.collection.site.cookie);
         rvIndex.setAdapter(pictureVideoAdapter);
 
-        rvIndex.getRecyclerView().addOnScrollListener(new PictureVideoAdapter.ScrollDetector(){
+        rvIndex.getRecyclerView().addOnScrollListener(new PictureVideoAdapter.ScrollDetector() {
             @Override
             public void onScrollUp() {
                 fabMenu.hideMenu(true);
@@ -219,18 +221,16 @@ public class DownloadTaskActivity extends BaseActivity {
                 DensityUtil.dp2px(this, 16));
 
         pictureVideoAdapter.setOnItemClickListener((v, position) -> {
-            HViewerApplication.temp = DownloadTaskActivity.this;
-            HViewerApplication.temp2 = task.collection.site;
-            HViewerApplication.temp3 = task.collection;
-            HViewerApplication.temp4 = task.collection.pictures;
-            Intent intent = new Intent(DownloadTaskActivity.this, PictureViewerActivity.class);
-            intent.putExtra("position", position);
-            startActivity(intent);
+            if (position < pictureVideoAdapter.getPictureSize())
+                openPictureViewerActivity(position);
+            else
+                openVideoViewerActivity(position);
         });
 
         //根据item宽度自动设置spanCount
-        GridLayoutManager layoutManager = new AutoFitGridLayoutManager(this, DensityUtil.dp2px(this, 100));
+        GridLayoutManager layoutManager = new WrappedGridLayoutManager(this, 6);
         rvIndex.getRecyclerView().setLayoutManager(layoutManager);
+        pictureVideoAdapter.setLayoutManager(layoutManager);
         rvIndex.setPullRefreshEnable(false);
         rvIndex.setPushRefreshEnable(false);
 
@@ -248,10 +248,45 @@ public class DownloadTaskActivity extends BaseActivity {
         }
     }
 
+    private void openPictureViewerActivity(int position) {
+        HViewerApplication.temp = this;
+        HViewerApplication.temp2 = task.collection.site;
+        HViewerApplication.temp3 = task.collection;
+        HViewerApplication.temp4 = task.collection.pictures;
+        Intent intent = new Intent(this, PictureViewerActivity.class);
+        intent.putExtra("position", position);
+        startActivity(intent);
+    }
+
+    private void openVideoViewerActivity(int position) {
+        Video video = (Video) pictureVideoAdapter.getVideoDataProvider().getItem(position - pictureVideoAdapter.getPictureSize());
+        if (video.vlink == null) {
+            showSnackBar("视频为空，可能下载失败");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Uri uri = Uri.parse(video.vlink);
+            DocumentFile docFile = DocumentFile.fromSingleUri(this, uri);
+            intent.setDataAndType(docFile.getUri(), "video/mp4");
+            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent, "选择播放器"));
+        } catch (Exception e) {
+            showSnackBar("无法打开，下载路径需要设置为content://协议");
+        }
+    }
+
     private boolean commentEnabled() {
-        return task.collection.site.galleryRule.commentItem != null &&
-                task.collection.site.galleryRule.commentAuthor != null &&
-                task.collection.site.galleryRule.commentContent != null;
+        if (task.collection.site.galleryRule == null)
+            return false;
+        else
+            return (task.collection.site.galleryRule.commentRule != null &&
+                    task.collection.site.galleryRule.commentRule.item != null &&
+                    task.collection.site.galleryRule.commentRule.author != null &&
+                    task.collection.site.galleryRule.commentRule.content != null)
+                    || (task.collection.site.galleryRule.commentItem != null &&
+                    task.collection.site.galleryRule.commentAuthor != null &&
+                    task.collection.site.galleryRule.commentContent != null);
     }
 
     private void refreshDescription() {
@@ -264,11 +299,21 @@ public class DownloadTaskActivity extends BaseActivity {
             adapter.getDataProvider().clear();
             adapter.getDataProvider().addAll(task.collection.tags);
         }
+        adapter.setOnItemClickListener((v, position) -> {
+            if (task.collection.tags != null) {
+                Tag tag = adapter.getDataProvider().getItem(position);
+                Intent intent = new Intent(DownloadTaskActivity.this, MainActivity.class);
+                intent.setAction("search");
+                intent.putExtra("tag", tag);
+                startActivity(intent);
+                this.finish();
+            }
+        });
         adapter.notifyDataSetChanged();
         holder.rbRating.setRating(task.collection.rating);
         holder.tvSubmittime.setText(task.collection.datetime);
         String url = task.collection.site.getGalleryUrl(task.collection.idCode, 0, task.collection.pictures);
-        if(task.collection.description!=null)
+        if (task.collection.description != null)
             holder.tvDescription.setText(HtmlContentParser.getClickableHtml(this, task.collection.description, url, source -> new BitmapDrawable()));
     }
 
@@ -337,7 +382,7 @@ public class DownloadTaskActivity extends BaseActivity {
             StaggeredGridLayoutManager layoutManager =
                     new AutoFitStaggeredGridLayoutManager(getApplicationContext(), OrientationHelper.HORIZONTAL);
             rvTags.setLayoutManager(layoutManager);
-            tvDescription.setAutoLinkMask(Linkify.EMAIL_ADDRESSES|Linkify.WEB_URLS);
+            tvDescription.setAutoLinkMask(Linkify.EMAIL_ADDRESSES | Linkify.WEB_URLS);
             tvDescription.setMovementMethod(LinkMovementMethod.getInstance());
         }
     }

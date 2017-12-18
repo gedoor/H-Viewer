@@ -69,6 +69,7 @@ public class MarketActivity extends BaseActivity {
     private List<MarketSiteAdapter> siteAdapters;
 
     private boolean getting = false;
+    private int sourceCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,7 +89,6 @@ public class MarketActivity extends BaseActivity {
         tabLayout.setVisibility(View.GONE);
         getAllSites();
     }
-
 
     private void initTabAndViewPager(Set<MarketSiteCategory> siteCategories) {
         //初始化Tab和ViewPager
@@ -167,7 +167,7 @@ public class MarketActivity extends BaseActivity {
                 .setNegativeButton("否", (dialog, which) -> {
                     newSite.gid = currSite.gid;
                     int sid = siteHolder.addSite(newSite);
-                    if(sid<0){
+                    if (sid < 0) {
                         showSnackBar("插入数据库失败");
                         return;
                     }
@@ -183,8 +183,6 @@ public class MarketActivity extends BaseActivity {
                     }
                 }).show();
     }
-
-    private int sourceCount = 0;
 
     public void getAllSites() {
         HViewerHttpClient.get(UrlConfig.siteSourceUrl, null, new HViewerHttpClient.OnResponseListener() {
@@ -206,8 +204,8 @@ public class MarketActivity extends BaseActivity {
                                         categories[j] = new Gson().fromJson((String) result, new TypeToken<List<MarketSiteCategory>>() {
                                         }.getType());
                                         if ((--sourceCount) == 0) {
-                                            for(List<MarketSiteCategory> categoryList : categories) {
-                                                if(categoryList==null)
+                                            for (List<MarketSiteCategory> categoryList : categories) {
+                                                if (categoryList == null)
                                                     continue;
                                                 for (MarketSiteCategory category : categoryList) {
                                                     if (!siteCategories.containsKey(category))
@@ -271,24 +269,28 @@ public class MarketActivity extends BaseActivity {
             int cPos = -1, sPos = -1;
             int size = 0;
             Set<MarketSiteCategory> categories = siteCategories.keySet();
-            int i = 0;
-            for (MarketSiteCategory category : categories) {
-                if (category.sites != null) {
-                    if (size + category.sites.size() > flatPos) {
-                        cPos = i;
-                        sPos = flatPos - size;
-                        categoryTitle = category.title;
-                        marketSite = category.sites.get(sPos);
-                        break;
-                    } else
-                        size += category.sites.size();
+            if (categories != null) {
+                int i = 0;
+                for (MarketSiteCategory category : categories) {
+                    if (category.sites != null) {
+                        if (size + category.sites.size() > flatPos) {
+                            cPos = i;
+                            sPos = flatPos - size;
+                            categoryTitle = category.title;
+                            marketSite = category.sites.get(sPos);
+                            break;
+                        } else
+                            size += category.sites.size();
+                    }
+                    i++;
                 }
-                i++;
             }
             if (cPos == -1 || sPos == -1 || marketSite == null) {
                 showSnackBar("站点全部更新完成！");
-                for (MarketSiteAdapter adapter : siteAdapters) {
-                    adapter.notifyDataSetChanged();
+                if (siteAdapters != null) {
+                    for (MarketSiteAdapter adapter : siteAdapters) {
+                        adapter.notifyDataSetChanged();
+                    }
                 }
                 return;
             }
@@ -314,7 +316,12 @@ public class MarketActivity extends BaseActivity {
                     final Site newSite = new Gson().fromJson((String) result, Site.class);
                     final Site currSite = siteHolder.getSiteByTitle(newSite.title);
                     if (currSite == null) {
-                        newSite.group = title;
+                        SiteGroup siteGroup = siteHolder.getGroupByTitle(title);
+                        if (siteGroup == null) {
+                            newSite.gid = siteHolder.addSiteGroup(new SiteGroup(1, title));
+                        } else {
+                            newSite.gid = siteGroup.gid;
+                        }
                         newSite.versionCode = versionCode;
                         siteHolder.addSite(newSite);
                         Intent intent = new Intent();

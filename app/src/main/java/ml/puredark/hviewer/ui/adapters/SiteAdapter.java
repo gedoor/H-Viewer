@@ -65,67 +65,76 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
 
     @Override
     public void onBindGroupViewHolder(SiteGroupViewHolder holder, final int groupPosition, int viewType) {
-        holder.indicator.setVisibility(View.VISIBLE);
-        holder.ivIcon.setImageResource(R.drawable.ic_group_black);
-        SiteGroup group = mProvider.getGroupItem(groupPosition);
-        holder.tvTitle.setText(group.title);
-        int expandState = holder.getExpandStateFlags();
-        boolean isExpanded = ((expandState & ExpandableItemConstants.STATE_FLAG_IS_EXPANDED) != 0);
-        boolean animateIndicator = ((expandState & ExpandableItemConstants.STATE_FLAG_HAS_EXPANDED_STATE_CHANGED) != 0);
-        holder.indicator.setExpandedState(isExpanded, animateIndicator);
+        if (groupPosition == getGroupCount() - 1) {
+            holder.ivIcon.setImageResource(R.drawable.ic_create_new_group_black);
+            holder.tvTitle.setText("添加新分类");
+            holder.indicator.setVisibility(View.GONE);
+        } else {
+            holder.indicator.setVisibility(View.VISIBLE);
+            holder.ivIcon.setImageResource(R.drawable.ic_group_black);
+            SiteGroup group = mProvider.getGroupItem(groupPosition);
+            holder.tvTitle.setText(group.title);
+            int expandState = holder.getExpandStateFlags();
+            boolean isExpanded = ((expandState & ExpandableItemConstants.STATE_FLAG_IS_EXPANDED) != 0);
+            boolean animateIndicator = ((expandState & ExpandableItemConstants.STATE_FLAG_HAS_EXPANDED_STATE_CHANGED) != 0);
+            holder.indicator.setExpandedState(isExpanded, animateIndicator);
+        }
         holder.container.setOnClickListener(v -> {
             if (mItemClickListener != null && groupPosition >= 0)
                 mItemClickListener.onGroupClick(v, groupPosition);
         });
         holder.container.setOnLongClickListener(v -> {
+            if (mItemClickListener != null && groupPosition >= 0 && groupPosition < getGroupCount() - 1)
                 return mItemClickListener.onGroupLongClick(v, groupPosition);
+            else
+                return false;
         });
     }
 
     @Override
     public void onBindChildViewHolder(final SiteViewHolder holder, final int groupPosition, final int childPosition, int viewType) {
-            Site site = mProvider.getChildItem(groupPosition, childPosition);
-            int rID = R.drawable.ic_filter_9_plus_black;
-            switch (childPosition) {
-                case 0:
-                    rID = R.drawable.ic_filter_1_black;
-                    break;
-                case 1:
-                    rID = R.drawable.ic_filter_2_black;
-                    break;
-                case 2:
-                    rID = R.drawable.ic_filter_3_black;
-                    break;
-                case 3:
-                    rID = R.drawable.ic_filter_4_black;
-                    break;
-                case 4:
-                    rID = R.drawable.ic_filter_5_black;
-                    break;
-                case 5:
-                    rID = R.drawable.ic_filter_6_black;
-                    break;
-                case 6:
-                    rID = R.drawable.ic_filter_7_black;
-                    break;
-                case 7:
-                    rID = R.drawable.ic_filter_8_black;
-                    break;
-                case 8:
-                    rID = R.drawable.ic_filter_9_black;
-                    break;
-            }
-            holder.ivIcon.setImageResource(rID);
-            holder.tvTitle.setText(site.title);
-            if (selectedSid == site.sid) {
-                holder.container.setBackgroundResource(R.color.black_10);
-                holder.switchListGrid.setVisibility(View.VISIBLE);
-                if(holder.switchListGrid.isChecked() != site.isGrid)
-                    new Handler().postDelayed(()->holder.switchListGrid.toggle(), 100);
-            } else {
-                holder.container.setBackgroundDrawable(null);
-                holder.switchListGrid.setVisibility(View.GONE);
-            }
+        Site site = mProvider.getChildItem(groupPosition, childPosition);
+        int rID = R.drawable.ic_filter_9_plus_black;
+        switch (childPosition) {
+            case 0:
+                rID = R.drawable.ic_filter_1_black;
+                break;
+            case 1:
+                rID = R.drawable.ic_filter_2_black;
+                break;
+            case 2:
+                rID = R.drawable.ic_filter_3_black;
+                break;
+            case 3:
+                rID = R.drawable.ic_filter_4_black;
+                break;
+            case 4:
+                rID = R.drawable.ic_filter_5_black;
+                break;
+            case 5:
+                rID = R.drawable.ic_filter_6_black;
+                break;
+            case 6:
+                rID = R.drawable.ic_filter_7_black;
+                break;
+            case 7:
+                rID = R.drawable.ic_filter_8_black;
+                break;
+            case 8:
+                rID = R.drawable.ic_filter_9_black;
+                break;
+        }
+        holder.ivIcon.setImageResource(rID);
+        holder.tvTitle.setText(site.title);
+        if (selectedSid == site.sid) {
+            holder.container.setBackgroundResource(R.color.black_10);
+            holder.switchListGrid.setVisibility(View.VISIBLE);
+            if (holder.switchListGrid.isChecked() != site.isGrid)
+                new Handler().postDelayed(() -> holder.switchListGrid.toggle(), 100);
+        } else {
+            holder.container.setBackgroundDrawable(null);
+            holder.switchListGrid.setVisibility(View.GONE);
+        }
 
         holder.container.setOnClickListener(v -> {
             if (mItemClickListener != null && childPosition >= 0)
@@ -144,22 +153,35 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
 
     @Override
     public int getGroupCount() {
-        return (mProvider == null) ? 0 : mProvider.getGroupCount();
+        return (mProvider == null) ? 1 : mProvider.getGroupCount() + 1;
     }
 
     @Override
     public int getChildCount(int groupPosition) {
-        return (mProvider == null) ? 0 : mProvider.getChildCount(groupPosition);
+        if (groupPosition == getGroupCount() - 1)
+            return 0;
+        else
+            return (mProvider == null) ? 0 : mProvider.getChildCount(groupPosition);
     }
 
     @Override
     public long getGroupId(int groupPosition) {
-            return (mProvider == null) ? 0 : mProvider.getGroupItem(groupPosition).getGroupId();
+        if (groupPosition == getGroupCount() - 1)
+            return 0;
+        else if (mProvider == null)
+            return 0;
+        else
+            return mProvider.getGroupItem(groupPosition).getGroupId();
     }
 
     @Override
     public long getChildId(int groupPosition, int childPosition) {
-            return (mProvider == null) ? 0 : mProvider.getChildItem(groupPosition, childPosition).getChildId();
+        if (groupPosition == getGroupCount() - 1)
+            return 0;
+        else if (mProvider == null)
+            return 0;
+        else
+            return mProvider.getChildItem(groupPosition, childPosition).getChildId();
     }
 
     @Override
@@ -171,6 +193,8 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
 
     @Override
     public boolean onCheckGroupCanStartDrag(SiteGroupViewHolder holder, int groupPosition, int x, int y) {
+        if (groupPosition == getGroupCount() - 1)
+            return false;
         final View dragHandleView = holder.ivIcon;
         return ViewUtil.hitTest(dragHandleView, x, y);
     }
@@ -183,12 +207,14 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
 
     @Override
     public ItemDraggableRange onGetGroupItemDraggableRange(SiteGroupViewHolder holder, int groupPosition) {
-        return null;
+        int end = Math.max(0, mProvider.getGroupCount() - 1);
+        return new GroupPositionItemDraggableRange(0, end);
     }
 
     @Override
     public ItemDraggableRange onGetChildItemDraggableRange(SiteViewHolder holder, int groupPosition, int childPosition) {
-        return null;
+        int end = Math.max(0, mProvider.getGroupCount() - 1);
+        return new GroupPositionItemDraggableRange(0, end);
     }
 
     @Override
@@ -203,7 +229,8 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
 
     @Override
     public void onMoveChildItem(int fromGroupPosition, int fromChildPosition, int toGroupPosition, int toChildPosition) {
-        if (fromGroupPosition == toGroupPosition && fromChildPosition == toChildPosition)  {
+        if ((fromGroupPosition == toGroupPosition && fromChildPosition == toChildPosition)
+                || fromGroupPosition >= mProvider.getGroupCount() || toGroupPosition >= mProvider.getGroupCount()) {
             return;
         }
         mProvider.moveChildItem(fromGroupPosition, fromChildPosition, toGroupPosition, toChildPosition);
@@ -221,7 +248,7 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
     @Override
     public boolean onCheckChildCanDrop(int draggingGroupPosition, int draggingChildPosition, int dropGroupPosition, int dropChildPosition) {
         if (draggingGroupPosition >= mProvider.getGroupCount() || dropGroupPosition >= mProvider.getGroupCount() ||
-            draggingChildPosition >= mProvider.getChildCount(draggingGroupPosition) || dropChildPosition >= mProvider.getChildCount(dropChildPosition))
+                draggingChildPosition >= mProvider.getChildCount(draggingGroupPosition) || dropChildPosition >= mProvider.getChildCount(dropChildPosition))
             return false;
         return true;
     }
@@ -251,6 +278,7 @@ public class SiteAdapter extends AbstractExpandableItemAdapter<SiteAdapter.SiteG
 
     public interface OnItemMoveListener {
         void onGroupMove(int fromGroupPosition, int toGroupPosition);
+
         void onItemMove(int fromGroupPosition, int fromChildPosition, int toGroupPosition, int toChildPosition);
     }
 

@@ -17,6 +17,7 @@ public class WrappedPullLoadMoreRecyclerView extends PullLoadMoreRecyclerView {
 
     public WrappedPullLoadMoreRecyclerView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        super.getRecyclerView().setOnTouchListener(null);
     }
 
     // 重写以支持SwipeBack
@@ -24,7 +25,7 @@ public class WrappedPullLoadMoreRecyclerView extends PullLoadMoreRecyclerView {
     protected void onDetachedFromWindow() {
         try {
             super.onDetachedFromWindow();
-        }catch (Exception e){
+        } catch (Exception e) {
         }
     }
 }

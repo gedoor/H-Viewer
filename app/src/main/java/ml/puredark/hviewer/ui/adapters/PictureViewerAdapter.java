@@ -1,52 +1,24 @@
 package ml.puredark.hviewer.ui.adapters;
 
-import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.drawable.Animatable;
-import android.os.Handler;
-import android.os.Looper;
-import android.support.annotation.Nullable;
-import android.support.v4.util.Pair;
+import android.net.Uri;
 import android.support.v7.widget.RecyclerView;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 
-import com.facebook.common.logging.FLog;
-import com.facebook.drawee.controller.BaseControllerListener;
-import com.facebook.imagepipeline.image.ImageInfo;
 import com.gc.materialdesign.views.ProgressBarCircularIndeterminate;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import me.relex.photodraweeview.PhotoDraweeView;
-import ml.puredark.hviewer.HViewerApplication;
 import ml.puredark.hviewer.R;
 import ml.puredark.hviewer.beans.Picture;
-import ml.puredark.hviewer.beans.Selector;
 import ml.puredark.hviewer.beans.Site;
-import ml.puredark.hviewer.core.RuleParser;
-import ml.puredark.hviewer.helpers.Logger;
-import ml.puredark.hviewer.http.HViewerHttpClient;
-import ml.puredark.hviewer.http.ImageLoader;
 import ml.puredark.hviewer.ui.activities.PictureViewerActivity;
 import ml.puredark.hviewer.ui.dataproviders.ListDataProvider;
-import ml.puredark.hviewer.ui.fragments.SettingFragment;
 import ml.puredark.hviewer.ui.listeners.OnItemLongClickListener;
-import ml.puredark.hviewer.utils.SharedPreferencesUtil;
-
-import static android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK;
 
 public class PictureViewerAdapter extends RecyclerView.Adapter<PictureViewerAdapter.PictureViewHolder> {
     private PictureViewerActivity activity;
@@ -73,33 +45,11 @@ public class PictureViewerAdapter extends RecyclerView.Adapter<PictureViewerAdap
     @Override
     public void onBindViewHolder(PictureViewHolder viewHolder, int position) {
         Picture picture = mProvider.getItem(position);
-        if (picture.pic != null) {
-            activity.loadImage(picture, viewHolder);
-        } else if (site.hasFlag(Site.FLAG_SINGLE_PAGE_BIG_PICTURE) && site.extraRule != null) {
-            if(site.extraRule.pictureRule != null && site.extraRule.pictureRule.url != null)
-                activity.getPictureUrl(viewHolder, picture, site.extraRule.pictureRule.url, site.extraRule.pictureRule.highRes);
-            else if(site.extraRule.pictureUrl != null)
-                activity.getPictureUrl(viewHolder, picture, site.extraRule.pictureUrl, site.extraRule.pictureHighRes);
-        } else if (site.picUrlSelector != null) {
-            activity.getPictureUrl(viewHolder, picture, site.picUrlSelector, null);
-        } else {
-            picture.pic = picture.url;
-            activity.loadImage(picture, viewHolder);
-        }
+        Uri uri = null;
+        viewHolder.ivPicture.setImageURI(uri);
+        activity.getUrlAndLoadImage(viewHolder, picture, false);
         viewHolder.btnRefresh.setOnClickListener(v -> {
-            if (picture.pic != null) {
-                activity.loadImage(picture, viewHolder);
-            } else if (site.hasFlag(Site.FLAG_SINGLE_PAGE_BIG_PICTURE) && site.extraRule != null) {
-                if(site.extraRule.pictureRule != null && site.extraRule.pictureRule.url != null)
-                    activity.getPictureUrl(viewHolder, picture, site.extraRule.pictureRule.url, site.extraRule.pictureRule.highRes);
-                else if(site.extraRule.pictureUrl != null)
-                    activity.getPictureUrl(viewHolder, picture, site.extraRule.pictureUrl, site.extraRule.pictureHighRes);
-            } else if (site.picUrlSelector == null) {
-                picture.pic = picture.url;
-                activity.loadImage(picture, viewHolder);
-            } else {
-                activity.getPictureUrl(viewHolder, picture, site.picUrlSelector, null);
-            }
+            activity.getUrlAndLoadImage(viewHolder, picture, false);
         });
         viewHolder.ivPicture.setOnLongClickListener(v -> {
             if (mOnItemLongClickListener != null)

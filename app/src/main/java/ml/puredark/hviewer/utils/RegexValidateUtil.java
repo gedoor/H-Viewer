@@ -44,10 +44,10 @@ public class RegexValidateUtil {
         return flag;
     }
 
-    public static boolean urlHasProtocol(String url){
-        if(url==null)
+    public static boolean urlHasProtocol(String url) {
+        if (url == null)
             return false;
-        if(url.startsWith("magnet:?"))
+        if (url.startsWith("magnet:?"))
             return true;
         Pattern p = Pattern.compile("\\w+://", Pattern.CASE_INSENSITIVE);
         Matcher matcher = p.matcher(url);
@@ -74,7 +74,7 @@ public class RegexValidateUtil {
             return "";
     }
 
-    public static String geCurrDirFromUrl(String url) {
+    public static String getCurrDirFromUrl(String url) {
         Pattern p = Pattern.compile("https?://[\\w./]*/", Pattern.CASE_INSENSITIVE);
         Matcher matcher = p.matcher(url);
         if (matcher.find())
@@ -84,29 +84,32 @@ public class RegexValidateUtil {
     }
 
     public static String getAbsoluteUrlFromRelative(String url, String host) {
-        if(urlHasProtocol(url))
+        if (url != null)
+            url = url.replaceAll("\\\\/", "/");
+        else
+            return url;
+        if (urlHasProtocol(url))
             return url;
         if (url.startsWith("//"))
-            if(host.startsWith("https://"))
-                return "https:"+url;
+            if (host.startsWith("https://"))
+                return "https:" + url;
             else
-                return "http:"+url;
+                return "http:" + url;
         else if (url.startsWith("/"))
             return getHostFromUrl(host) + url;
         else if (url.startsWith("./"))
-            return geCurrDirFromUrl(host) + url.substring(2);
+            return getCurrDirFromUrl(host) + url.substring(2);
         else if (url.startsWith("../../")) {
             Pattern p = Pattern.compile("(https?://[\\w./]*/).*/.*/", Pattern.CASE_INSENSITIVE);
             Matcher matcher = p.matcher(url);
             String prefix = (matcher.find()) ? matcher.group(1) : "";
             return prefix + url.substring(6);
-        }
-        else if (url.startsWith("../")) {
+        } else if (url.startsWith("../")) {
             Pattern p = Pattern.compile("(https?://[\\w./]*/).*/", Pattern.CASE_INSENSITIVE);
             Matcher matcher = p.matcher(url);
             String prefix = (matcher.find()) ? matcher.group(1) : "";
             return prefix + url.substring(3);
         } else
-            return geCurrDirFromUrl(host) + url;
+            return getCurrDirFromUrl(host) + url;
     }
 }

@@ -22,6 +22,7 @@ import ml.puredark.hviewer.helpers.Logger;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.FormBody;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -34,6 +35,43 @@ public class HViewerHttpClient {
             .readTimeout(60, TimeUnit.SECONDS)
             .dns(new HttpDns())
             .build();
+
+    public static MediaType getContentType(String url, List<Pair<String, String>> headers) {
+        Response response = getResponseHeader(url, headers);
+        return response.body().contentType();
+    }
+
+    public static long getContentLength(String url, List<Pair<String, String>> headers) {
+        Response response = getResponseHeader(url, headers);
+        return (response != null) ? response.body().contentLength() : 0;
+    }
+
+    public static Response getResponseHeader(String url, List<Pair<String, String>> headers) {
+        if (url == null || !url.startsWith("http")) {
+            return null;
+        }
+        HRequestBuilder builder = new HRequestBuilder();
+        if (headers != null) {
+            for (Pair<String, String> header : headers) {
+                builder.addHeader(header.first, header.second);
+            }
+        }
+        Response response = null;
+        try {
+            Request request = builder
+                    .url(url)
+                    .head()
+                    .build();
+            response = mClient.newCall(request).execute();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (response != null) {
+                response.close();
+            }
+        }
+        return response;
+    }
 
     public static Object get(String url, List<Pair<String, String>> headers) {
         if (url == null || !url.startsWith("http")) {
@@ -78,7 +116,7 @@ public class HViewerHttpClient {
         if (!post)
             get(url, disableHProxy, headers, false, null, callback);
         else {
-            String params = (url == null) ? "" : url.substring(url.indexOf('?'));
+            String params = (url == null) ? "" : (url.indexOf('?') > 0) ? url.substring(url.indexOf('?')) : url;
             post(url, disableHProxy, params, headers, callback);
         }
     }
@@ -128,6 +166,30 @@ public class HViewerHttpClient {
         get(url, disableHProxy, headers, true, requestBody, callback);
     }
 
+    /**
+     * 获得字符集
+     */
+    public static String getCharset(String html) {
+        Document doc = Jsoup.parse(html);
+        Elements eles = doc.select("meta[http-equiv=Content-Type]");
+        Iterator<Element> itor = eles.iterator();
+        while (itor.hasNext())
+            return matchCharset(itor.next().toString());
+        return "utf-8";
+    }
+
+    /**
+     * 获得页面字符
+     */
+    public static String matchCharset(String content) {
+        String chs = "utf-8";
+        Pattern p = Pattern.compile("(?<=charset=)(.+)(?=\")");
+        Matcher m = p.matcher(content);
+        if (m.find())
+            return m.group();
+        return chs;
+    }
+
     public interface OnResponseListener {
         void onSuccess(String contentType, Object result);
 
@@ -161,30 +223,6 @@ public class HViewerHttpClient {
             }
             mHandler.post(() -> onResponse(contentType, body));
         }
-    }
-
-    /**
-     * 获得字符集
-     */
-    public static String getCharset(String html) {
-        Document doc = Jsoup.parse(html);
-        Elements eles = doc.select("meta[http-equiv=Content-Type]");
-        Iterator<Element> itor = eles.iterator();
-        while (itor.hasNext())
-            return matchCharset(itor.next().toString());
-        return "utf-8";
-    }
-
-    /**
-     * 获得页面字符
-     */
-    public static String matchCharset(String content) {
-        String chs = "utf-8";
-        Pattern p = Pattern.compile("(?<=charset=)(.+)(?=\")");
-        Matcher m = p.matcher(content);
-        if (m.find())
-            return m.group();
-        return chs;
     }
 
     // Pre-define error code

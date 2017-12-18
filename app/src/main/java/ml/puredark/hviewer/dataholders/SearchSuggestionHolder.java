@@ -22,26 +22,26 @@ public class SearchSuggestionHolder {
 
     public SearchSuggestionHolder(Context context) {
         this.mContext = context;
-        String searchSuggestionStr = (String) SharedPreferencesUtil.getData(context, "SearchSuggestion","[]");
+        String searchSuggestionStr = (String) SharedPreferencesUtil.getData(context, "SearchSuggestion", "[]");
         searchSuggestions = new Gson().fromJson(searchSuggestionStr, new TypeToken<ArrayList<String>>() {
         }.getType());
-        if(searchSuggestions==null)
+        if (searchSuggestions == null)
             searchSuggestions = new ArrayList<>();
+        removeDuplicate();
         trimSearchSuggestion();
     }
 
-    public void removeDuplicate(){
+    public void removeDuplicate() {
         searchSuggestions = new ArrayList(new HashSet(searchSuggestions));
     }
 
     public void saveSearchSuggestion() {
-        removeDuplicate();
         SharedPreferencesUtil.saveData(mContext, "SearchSuggestion", new Gson().toJson(searchSuggestions));
     }
 
     public void addSearchSuggestion(String item) {
         if (item == null) return;
-        if(!searchSuggestions.contains(item)) {
+        if (!searchSuggestions.contains(item)) {
             searchSuggestions.add(0, item.trim());
             trimSearchSuggestion();
         }
@@ -58,12 +58,16 @@ public class SearchSuggestionHolder {
     }
 
     public void trimSearchSuggestion() {
-        while (searchSuggestions.size() > 500)
-            searchSuggestions.remove(500);
+        try {
+            while (searchSuggestions.size() > 500)
+                searchSuggestions.remove(searchSuggestions.size() - 1);
+        } catch (IndexOutOfBoundsException e) {
+            e.printStackTrace();
+        }
     }
 
     public List<String> getSearchSuggestion() {
-        if(searchSuggestions==null)
+        if (searchSuggestions == null)
             return new ArrayList<>();
         else
             return searchSuggestions;

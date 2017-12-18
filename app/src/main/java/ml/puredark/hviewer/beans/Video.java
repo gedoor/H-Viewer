@@ -2,9 +2,15 @@ package ml.puredark.hviewer.beans;
 
 import ml.puredark.hviewer.ui.dataproviders.AbstractDataProvider;
 
+import static ml.puredark.hviewer.beans.DownloadItemStatus.STATUS_WAITING;
+
 public class Video extends AbstractDataProvider.Data {
     public int vid;
     public String thumbnail, content;
+    public String vlink;
+    public int status = STATUS_WAITING;
+    public int percent = 0;
+    public int retries;
 
     public Video(int vid, String thumbnail, String content) {
         this.vid = vid;
@@ -37,9 +43,9 @@ public class Video extends AbstractDataProvider.Data {
     }
 
     @Override
-    public String toString(){
-        return "vid="+vid+"\n"+
-                "thumbnail="+thumbnail+"\n"+
-                "content="+content+"\n";
+    public String toString() {
+        return "vid=" + vid + "\n" +
+                "thumbnail=" + thumbnail + "\n" +
+                "content=" + content + "\n";
     }
 }

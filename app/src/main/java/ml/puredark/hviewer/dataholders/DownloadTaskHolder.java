@@ -13,9 +13,12 @@ import java.util.List;
 import ml.puredark.hviewer.HViewerApplication;
 import ml.puredark.hviewer.beans.Collection;
 import ml.puredark.hviewer.beans.DownloadTask;
-import ml.puredark.hviewer.beans.LocalCollection;
 import ml.puredark.hviewer.beans.Picture;
+import ml.puredark.hviewer.beans.Video;
 import ml.puredark.hviewer.helpers.FileHelper;
+
+import static ml.puredark.hviewer.beans.DownloadItemStatus.STATUS_DOWNLOADING;
+import static ml.puredark.hviewer.beans.DownloadItemStatus.STATUS_WAITING;
 
 /**
  * Created by PureDark on 2016/8/12.
@@ -32,14 +35,14 @@ public class DownloadTaskHolder {
     }
 
     public void saveDownloadTasks() {
-        if(downloadTasks==null)
+        if (downloadTasks == null)
             return;
         for (DownloadTask item : downloadTasks) {
             updateDownloadTasks(item);
         }
     }
 
-    public void updateDownloadTasks(DownloadTask item){
+    public void updateDownloadTasks(DownloadTask item) {
         ContentValues contentValues = new ContentValues();
         contentValues.put("idCode", item.collection.idCode);
         contentValues.put("title", item.collection.title);
@@ -74,8 +77,8 @@ public class DownloadTaskHolder {
         return maxId;
     }
 
-    public List<DownloadTask> getDownloadTasks(){
-        if(downloadTasks==null)
+    public List<DownloadTask> getDownloadTasks() {
+        if (downloadTasks == null)
             downloadTasks = getDownloadTasksFromDB();
         return downloadTasks;
     }
@@ -98,13 +101,12 @@ public class DownloadTaskHolder {
         return downloadTasks;
     }
 
-    public int scanPathForDownloadTask(String rootPath, String... subDirs){
+    public int scanPathForDownloadTask(String rootPath, String... subDirs) {
         getDownloadTasks();
-        int count = 0;
         try {
             DocumentFile root = FileHelper.getDirDocument(rootPath, subDirs);
             DocumentFile[] dirs = root.listFiles();
-
+            int count = 0;
             for (DocumentFile dir : dirs) {
                 if (dir.isDirectory()) {
                     DocumentFile file = dir.findFile("detail.txt");
@@ -112,47 +114,18 @@ public class DownloadTaskHolder {
                         String detail = FileHelper.readString(file);
                         DownloadTask task = new Gson().fromJson(detail, DownloadTask.class);
                         task.status = DownloadTask.STATUS_COMPLETED;
-                        LocalCollection collection = task.collection;
-                        DocumentFile ifile;
-
-                        if (collection.filename == null) {
-                            collection.filename = collection.cover.substring(collection.cover.lastIndexOf("%2F")+3, collection.cover.length());
-                            if (collection.filename.contains("/")) {
-                                collection.filename = collection.filename.substring(collection.filename.lastIndexOf("/") + 1, collection.filename.length());
-                            }
-                        }
-                        ifile = dir.findFile(collection.filename);
-                        if (ifile != null) collection.cover = ifile.getUri().toString();
-                        for (Picture picture : collection.pictures) {
-                            if (picture.filename == null) {
-                                picture.filename = picture.thumbnail.substring(picture.thumbnail.lastIndexOf("%2F")+3,picture.thumbnail.length());
-                                if (picture.filename.contains("/")) {
-                                    picture.filename = picture.filename.substring(picture.filename.lastIndexOf("/") + 1, picture.filename.length());
-                                }
-                            }
-                            ifile = dir.findFile(picture.filename);
-                            if (ifile != null) {
-                                picture.thumbnail = ifile.getUri().toString();
-                                picture.pic = ifile.getUri().toString();
-                            }
-                        }
-                        FileHelper.writeString(HViewerApplication.getGson().toJson(task), "detail.txt", rootPath, dir.getName());
-                        int did = isInList(task);
-                        if (did == -1) {
+                        if (!isInList(task)) {
+                            count++;
                             addDownloadTask(task);
-                        } else {
-                            task.did = did;
-                            updateDownloadTasks(task);
                         }
-                        count++;
                     }
                 }
             }
+            return count;
         } catch (Exception e) {
-            count = -1;
             e.printStackTrace();
+            return -1;
         }
-        return count;
     }
 
     public int isInList(DownloadTask item) {
@@ -165,15 +138,24 @@ public class DownloadTaskHolder {
     }
 
     public void setAllPaused() {
-        if(downloadTasks==null)
+        if (downloadTasks == null)
             return;
         for (DownloadTask task : downloadTasks) {
-            if (task.status == DownloadTask.STATUS_DOWNLOADING) {
+            if (task.status == DownloadTask.STATUS_GETTING) {
                 task.status = DownloadTask.STATUS_PAUSED;
             }
-            for (Picture picture : task.collection.pictures) {
-                if (picture.status == Picture.STATUS_DOWNLOADING) {
-                    picture.status = Picture.STATUS_WAITING;
+            if (task.collection.pictures != null) {
+                for (Picture picture : task.collection.pictures) {
+                    if (picture.status == STATUS_DOWNLOADING) {
+                        picture.status = STATUS_WAITING;
+                    }
+                }
+            }
+            if (task.collection.videos != null) {
+                for (Video video : task.collection.videos) {
+                    if (video.status == STATUS_DOWNLOADING) {
+                        video.status = STATUS_WAITING;
+                    }
                 }
             }
         }

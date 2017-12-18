@@ -70,8 +70,11 @@ public class CollectionFragment extends MyFragment {
 
     private boolean onePage = false;
     private int startPage;
-    private int pageStep = 1;
     private int currPage;
+
+    private boolean noTouch = false;
+    // 记录使用js进行scroll的次数，每5秒检测一次，如果没有获得新item，则+1，达到3次判定已获取完毕
+    private int scrollTimes = 0;
 
     public CollectionFragment() {
     }
@@ -155,11 +158,12 @@ public class CollectionFragment extends MyFragment {
             }
         });
 
+        rvCollection.getRecyclerView().setOnTouchListener((v, event) -> noTouch);
+
         //下拉刷新和加载更多
         rvCollection.setOnPullLoadMoreListener(new PullLoadMoreRecyclerView.PullLoadMoreListener() {
             @Override
             public void onRefresh() {
-                keyword = null;
                 currPage = startPage;
                 rvCollection.setRefreshing(true);
                 activity.setDrawerEnabled(true);
@@ -169,7 +173,7 @@ public class CollectionFragment extends MyFragment {
             @Override
             public void onLoadMore() {
                 activity.setDrawerEnabled(true);
-                getCollections(keyword, currPage + pageStep);
+                getCollections(keyword, currPage + 1);
             }
         });
 
@@ -208,13 +212,11 @@ public class CollectionFragment extends MyFragment {
         }
     }
 
-    // 记录使用js进行scroll的次数，每5秒检测一次，如果没有获得新item，则+1，达到3次判定已获取完毕
-    private int scrollTimes = 0;
-
     private void getCollections(String keyword, final int page) {
         if (onePage && page > startPage && !site.hasFlag(Site.FLAG_JS_SCROLL)) {
             // 如果URL中根本没有page参数的位置，则肯定只有1页，无需多加载一次
             new Handler().postDelayed(() -> rvCollection.setPullLoadMoreCompleted(), 250);
+            noTouch = false;
             return;
         }
         this.keyword = keyword;
@@ -248,23 +250,25 @@ public class CollectionFragment extends MyFragment {
             }
             Logger.d("CollectionFragment", "WebView");
         } else
-            HViewerHttpClient.get(url, site.disableHProxy, site.getHeaders(), site.hasFlag(Site.FLAG_POST_INDEX), new HViewerHttpClient.OnResponseListener() {
-                @Override
-                public void onSuccess(String contentType, final Object result) {
-                    if (!(result instanceof String))
-                        return;
-                    String html = (String) result;
-                    onResultGot(html, url, page);
-                }
+            HViewerHttpClient.get(url, site.disableHProxy, site.getHeaders(), site.hasFlag(Site.FLAG_POST_INDEX) || site.hasFlag(Site.FLAG_POST_ALL),
+                    new HViewerHttpClient.OnResponseListener() {
+                        @Override
+                        public void onSuccess(String contentType, final Object result) {
+                            if (!(result instanceof String))
+                                return;
+                            String html = (String) result;
+                            onResultGot(html, url, page);
+                        }
 
-                @Override
-                public void onFailure(HViewerHttpClient.HttpError error) {
-                    BaseActivity activity = (BaseActivity) getActivity();
-                    if (activity != null)
-                        activity.showSnackBar(error.getErrorString());
-                    rvCollection.setPullLoadMoreCompleted();
-                }
-            });
+                        @Override
+                        public void onFailure(HViewerHttpClient.HttpError error) {
+                            BaseActivity activity = (BaseActivity) getActivity();
+                            if (activity != null)
+                                activity.showSnackBar(error.getErrorString());
+                            rvCollection.setPullLoadMoreCompleted();
+                            noTouch = false;
+                        }
+                    });
     }
 
     @JavascriptInterface
@@ -276,6 +280,7 @@ public class CollectionFragment extends MyFragment {
                 adapter.notifyItemRangeRemoved(0, preSize);
             }
         }
+        noTouch = true;
         new Thread(() -> {
             if (HViewerApplication.DEBUG)
                 SimpleFileUtil.writeString("/sdcard/html.txt", html, "utf-8");
@@ -311,6 +316,7 @@ public class CollectionFragment extends MyFragment {
                 new Handler(Looper.getMainLooper()).post(() -> {
                     adapter.notifyItemRangeInserted(oldSize, collections.size() - oldSize);
                     rvCollection.setPullLoadMoreCompleted();
+                    noTouch = false;
                 });
             } else if (site.hasFlag(Site.FLAG_JS_SCROLL) && mWebView != null) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -322,6 +328,7 @@ public class CollectionFragment extends MyFragment {
                 scrollTimes = 0;
                 new Handler(Looper.getMainLooper()).post(() -> {
                     rvCollection.setPullLoadMoreCompleted();
+                    noTouch = false;
                 });
             }
         }).start();
@@ -398,22 +405,18 @@ public class CollectionFragment extends MyFragment {
             if (pageStr == null) {
                 onePage = true;
                 startPage = 0;
-                pageStep = 1;
             } else {
                 onePage = false;
                 String[] pageStrs = pageStr.split(":");
                 if (pageStrs.length > 1) {
-                    pageStep = Integer.parseInt(pageStrs[1]);
                     startPage = Integer.parseInt(pageStrs[0]);
                 } else {
-                    pageStep = 1;
                     startPage = Integer.parseInt(pageStr);
                 }
             }
             currPage = startPage;
         } catch (NumberFormatException e) {
             startPage = 0;
-            pageStep = 1;
             currPage = startPage;
         }
     }

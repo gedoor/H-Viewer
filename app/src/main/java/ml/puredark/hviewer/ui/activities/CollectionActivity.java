@@ -14,6 +14,7 @@ import android.support.v7.widget.OrientationHelper;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.support.v7.widget.Toolbar;
+import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
 import android.text.util.Linkify;
 import android.util.Log;
@@ -33,6 +34,8 @@ import com.github.clans.fab.FloatingActionMenu;
 import com.umeng.analytics.MobclickAgent;
 import com.wuxiaolong.pullloadmorerecyclerview.PullLoadMoreRecyclerView;
 
+import net.opacapp.multilinecollapsingtoolbar.CollapsingToolbarLayout;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,6 +48,7 @@ import ml.puredark.hviewer.beans.Collection;
 import ml.puredark.hviewer.beans.Comment;
 import ml.puredark.hviewer.beans.LocalCollection;
 import ml.puredark.hviewer.beans.Picture;
+import ml.puredark.hviewer.beans.Rule;
 import ml.puredark.hviewer.beans.Site;
 import ml.puredark.hviewer.beans.Tag;
 import ml.puredark.hviewer.beans.Video;
@@ -80,6 +84,8 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
 
     @BindView(R.id.coordinator_layout)
     CoordinatorLayout coordinatorLayout;
+    @BindView(R.id.toolbar_layout)
+    CollapsingToolbarLayout toolbarLayout;
     @BindView(R.id.backdrop)
     ImageView backdrop;
     @BindView(R.id.toolbar)
@@ -116,7 +122,6 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
     private boolean onePic = false;
     private boolean onePage = false;
     private int startPage;
-    private int pageStep = 1;
     private int currPage;
 
     private boolean isIndexComplete = false;
@@ -129,6 +134,8 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
     private HistoryHolder historyHolder;
     private FavouriteHolder favouriteHolder;
     private SiteTagHolder siteTagHolder;
+
+    private String currGalleryUrl;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -164,6 +171,8 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
         }
         myCollection = new LocalCollection(collection, site);
 
+        currGalleryUrl = site.galleryUrl;
+
         toolbar.setTitle(collection.title);
         setSupportActionBar(toolbar);
 
@@ -173,6 +182,8 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
 
         //解析URL模板
         parseUrl(site.galleryUrl);
+
+        onePage &= !site.hasFlag(Site.FLAG_SECOND_LEVEL_GALLERY);
 
         initCover(myCollection.cover);
         initTabAndViewPager();
@@ -214,22 +225,18 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
             if (pageStr == null) {
                 onePage = true;
                 startPage = 0;
-                pageStep = 1;
             } else {
                 onePage = false;
                 String[] pageStrs = pageStr.split(":");
                 if (pageStrs.length > 1) {
-                    pageStep = Integer.parseInt(pageStrs[1]);
                     startPage = Integer.parseInt(pageStrs[0]);
                 } else {
-                    pageStep = 1;
                     startPage = Integer.parseInt(pageStr);
                 }
             }
             currPage = startPage;
         } catch (NumberFormatException e) {
             startPage = 0;
-            pageStep = 1;
             currPage = startPage;
         }
     }
@@ -283,12 +290,12 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
         rvIndex.getRecyclerView().addOnScrollListener(new PictureVideoAdapter.ScrollDetector() {
             @Override
             public void onScrollUp() {
-                fabMenu.showMenu(true);
+                fabMenu.hideMenu(true);
             }
 
             @Override
             public void onScrollDown() {
-                fabMenu.hideMenu(true);
+                fabMenu.showMenu(true);
             }
         });
 
@@ -341,20 +348,20 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
     }
 
     private void openPictureViewerActivity(int position) {
-        HViewerApplication.temp = CollectionActivity.this;
+        HViewerApplication.temp = this;
         HViewerApplication.temp2 = site;
         HViewerApplication.temp3 = collection;
         List<Picture> pictures = new ArrayList<>();
         pictures.addAll(pictureVideoAdapter.getPictureDataProvider().getItems());
         HViewerApplication.temp4 = pictures;
-        Intent intent = new Intent(CollectionActivity.this, PictureViewerActivity.class);
+        Intent intent = new Intent(this, PictureViewerActivity.class);
         intent.putExtra("position", position);
         startActivity(intent);
     }
 
     private void openVideoViewerActivity(int position) {
         HViewerApplication.temp = pictureVideoAdapter.getVideoDataProvider().getItem(position - pictureVideoAdapter.getPictureSize());
-        Intent intent = new Intent(CollectionActivity.this, VideoViewerActivity.class);
+        Intent intent = new Intent(this, VideoViewerActivity.class);
         startActivity(intent);
     }
 
@@ -389,6 +396,16 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
             }
             adapter.getDataProvider().addAll(myCollection.tags);
             adapter.notifyItemRangeChanged(0, myCollection.tags.size());
+            adapter.setOnItemClickListener((v, position) -> {
+                if (myCollection.tags != null) {
+                    Tag tag = adapter.getDataProvider().getItem(position);
+                    Intent intent = new Intent(CollectionActivity.this, MainActivity.class);
+                    intent.setAction("search");
+                    intent.putExtra("tag", tag);
+                    startActivity(intent);
+                    this.finish();
+                }
+            });
         }
         holder.rbRating.setRating(myCollection.rating);
         Logger.d("CollectionActivity", "myCollection.rating:" + myCollection.rating);
@@ -402,8 +419,8 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
         collection.rating = myCollection.rating;
         collection.datetime = myCollection.datetime;
         collection.description = myCollection.description;
-        if (myCollection.videos != null && myCollection.videos.size() > 0)
-            fabDownload.setVisibility(View.GONE);
+//        if (myCollection.videos != null && myCollection.videos.size() > 0)
+//            fabDownload.setVisibility(View.GONE);
     }
 
     private void getCollectionDetail(final int page) {
@@ -414,7 +431,7 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
             return;
         }
         Log.d("CollectionActivity", "myCollection.idCode:" + myCollection.idCode);
-        final String url = site.getGalleryUrl(myCollection.idCode, page, pictureVideoAdapter.getPictureDataProvider().getItems());
+        final String url = site.getGalleryUrl(currGalleryUrl, myCollection.idCode, page, myCollection.pictures);
         Logger.d("CollectionActivity", "site.getGalleryUrl:" + url);
         Logger.d("CollectionActivity", "starPage:" + startPage + " page:" + page);
         //如果需要执行JS才能获取完整数据，则不得不使用webView来载入页面
@@ -475,7 +492,9 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
 
             if (HViewerApplication.DEBUG)
                 SimpleFileUtil.writeString("/sdcard/html.txt", html, "utf-8");
-            myCollection = RuleParser.getCollectionDetail(myCollection, html, site.galleryRule, url);
+            Rule applyRule = (currGalleryUrl != null && currGalleryUrl.equals(site.galleryUrl)) ? site.galleryRule : site.extraRule;
+            myCollection = RuleParser.getCollectionDetail(myCollection, html, applyRule, url);
+
             if (myCollection.videos != null && myCollection.videos.size() > 0) {
                 Logger.d("CollectionActivity", "myCollection.videos.size():" + myCollection.videos.size());
                 Logger.d("CollectionActivity", "myCollection.videos.get(0):" + myCollection.videos.get(0));
@@ -499,28 +518,31 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
                 // 当前页获取到的第一个图片
                 final Picture picture = myCollection.pictures.get(0);
                 // 如果有FLAG_SECOND_LEVEL_GALLERY的特殊处理
-                if (site.hasFlag(Site.FLAG_SECOND_LEVEL_GALLERY) && !Picture.hasPicPosfix(picture.url) && site.extraRule != null) {
-                    HViewerHttpClient.get(picture.url, site.getHeaders(), new HViewerHttpClient.OnResponseListener() {
-                        @Override
-                        public void onSuccess(String contentType, Object result) {
-                            myCollection = RuleParser.getCollectionDetail(myCollection, (String) result, site.extraRule, picture.url);
-                            int preSize = pictureVideoAdapter.getPictureSize();
-                            if (preSize > 0) {
-                                pictureVideoAdapter.getPictureDataProvider().clear();
-                                pictureVideoAdapter.notifyItemRangeRemoved(0, preSize);
-                            }
-                            pictureVideoAdapter.getPictureDataProvider().addAll(myCollection.pictures);
-                            pictureVideoAdapter.notifyItemRangeInserted(0, myCollection.pictures.size());
-                            isIndexComplete = true;
-                            myCollection.pictures = pictureVideoAdapter.getPictureDataProvider().getItems();
-                        }
-
-                        @Override
-                        public void onFailure(HViewerHttpClient.HttpError error) {
-                            showSnackBar(error.getErrorString());
-                            rvIndex.setPullLoadMoreCompleted();
-                        }
-                    });
+                if (site.isFirstLoadSecondLevelGallery(myCollection.pictures)) {
+                    Logger.d("CollectionActivity", "site.hasFlag(Site.FLAG_SECOND_LEVEL_GALLERY)");
+                    currGalleryUrl = picture.url;
+                    getCollectionDetail(currPage);
+//                    HViewerHttpClient.get(picture.url, site.getHeaders(), new HViewerHttpClient.OnResponseListener() {
+//                        @Override
+//                        public void onSuccess(String contentType, Object result) {
+//                            myCollection = RuleParser.getCollectionDetail(myCollection, (String) result, site.extraRule, picture.url);
+//                            int preSize = pictureVideoAdapter.getPictureSize();
+//                            if (preSize > 0) {
+//                                pictureVideoAdapter.getPictureDataProvider().clear();
+//                                pictureVideoAdapter.notifyItemRangeRemoved(0, preSize);
+//                            }
+//                            pictureVideoAdapter.getPictureDataProvider().addAll(myCollection.pictures);
+//                            pictureVideoAdapter.notifyItemRangeInserted(0, myCollection.pictures.size());
+//                            isIndexComplete = true;
+//                            myCollection.pictures = pictureVideoAdapter.getPictureDataProvider().getItems();
+//                        }
+//
+//                        @Override
+//                        public void onFailure(HViewerHttpClient.HttpError error) {
+//                            showSnackBar(error.getErrorString());
+//                            rvIndex.setPullLoadMoreCompleted();
+//                        }
+//                    });
                 } else {
                     // 没有flag的话
                     if (page == startPage) {
@@ -602,7 +624,7 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
                 if (!commentAdapter.getDataProvider().getItems().contains(firstComment)) {
                     int preSize = commentAdapter.getItemCount();
                     commentAdapter.getDataProvider().addAll(myCollection.comments);
-                    pictureVideoAdapter.notifyItemRangeInserted(preSize, myCollection.comments.size());
+                    commentAdapter.notifyItemRangeInserted(preSize, myCollection.comments.size());
                 }
             }
 
@@ -625,7 +647,7 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
                 pictureViewerActivity.notifyDataSetChanged(pictures);
             }
             if (finalFlagNextPage)
-                getCollectionDetail(currPage + pageStep);
+                getCollectionDetail(currPage + 1);
         });
     }
 
@@ -635,15 +657,19 @@ public class CollectionActivity extends BaseActivity implements AppBarLayout.OnO
     }
 
     @OnClick(R.id.fab_browser)
-    void fab_browser() {
+    void viewInBrowser() {
         final String url = site.getGalleryUrl(myCollection.idCode, startPage, pictureVideoAdapter.getPictureDataProvider().getItems());
         Intent intent = new Intent();
         intent.setAction("android.intent.action.VIEW");
         Uri content_url = Uri.parse(url);
-        intent.setData(content_url);
-        startActivity(intent);
-        // 统计打开浏览器访问次数
-        MobclickAgent.onEvent(HViewerApplication.mContext, "SwitchToBrowser");
+        if (content_url != null && !TextUtils.isEmpty(url)) {
+            intent.setData(content_url);
+            startActivity(intent);
+            // 统计打开浏览器访问次数
+            MobclickAgent.onEvent(HViewerApplication.mContext, "SwitchToBrowser");
+        } else {
+            showSnackBar("网址为空！");
+        }
     }
 
     @OnClick(R.id.fab_favor)

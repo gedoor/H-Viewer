@@ -7,44 +7,42 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.support.v7.app.AppCompatDelegate;
 
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.GsonJsonProvider;
 import com.jayway.jsonpath.spi.json.JsonProvider;
 import com.jayway.jsonpath.spi.mapper.GsonMappingProvider;
 import com.jayway.jsonpath.spi.mapper.MappingProvider;
+import com.lzy.okgo.OkGo;
+import com.lzy.okgo.cache.CacheEntity;
+import com.lzy.okgo.cache.CacheMode;
 import com.sina.util.dnscache.DNSCache;
 import com.umeng.analytics.MobclickAgent;
 
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.logging.Level;
 
 import ml.puredark.hviewer.configs.ImagePipelineConfigBuilder;
-import ml.puredark.hviewer.configs.UrlConfig;
 import ml.puredark.hviewer.core.CrashHandler;
 import ml.puredark.hviewer.dataholders.SearchHistoryHolder;
 import ml.puredark.hviewer.dataholders.SearchSuggestionHolder;
 import ml.puredark.hviewer.download.DownloadService;
-import ml.puredark.hviewer.helpers.UpdateManager;
-import ml.puredark.hviewer.http.HViewerHttpClient;
 import ml.puredark.hviewer.libraries.swipeback.common.SwipeBackApplication;
 
 public class HViewerApplication extends SwipeBackApplication {
-    public static Context mContext;
     /**
      * 是否开启日志输出,在Debug状态下开启,
      * 在Release状态下关闭以提示程序性能
      */
-    public final static boolean DEBUG = true;
-
+    public final static boolean DEBUG = BuildConfig.DEBUG;
+    public static Context mContext;
     // 全局变量，用于跨Activity传递复杂对象的引用
     public static Object temp, temp2, temp3, temp4;
 
@@ -84,12 +82,12 @@ public class HViewerApplication extends SwipeBackApplication {
         // 得到网络连接信息
         ConnectivityManager manager = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
         // 去进行判断网络是否连接
-        if (manager.getActiveNetworkInfo() != null) {
-            return manager.getActiveNetworkInfo().isAvailable();
+        NetworkInfo info = manager.getActiveNetworkInfo();
+        if (info != null) {
+            return info.isAvailable();
         }
         return false;
     }
-
 
 
     @TargetApi(Build.VERSION_CODES.GINGERBREAD)
@@ -137,6 +135,16 @@ public class HViewerApplication extends SwipeBackApplication {
                 return options;
             }
         });
+
+        //必须调用初始化
+        OkGo.init(this);
+        OkGo.getInstance()
+                .debug("OkGo", Level.INFO, DEBUG)
+                .setCacheMode(CacheMode.REQUEST_FAILED_READ_CACHE)
+                .setCacheTime(CacheEntity.CACHE_NEVER_EXPIRE)
+                .setRetryCount(3)
+                .setCertificates();
+
     }
 
 
